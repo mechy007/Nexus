@@ -6,6 +6,12 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import java.time.Instant
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.startCoroutine
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 class OpenJarvisIntegrationTest {
     @Test
@@ -80,4 +86,19 @@ class OpenJarvisIntegrationTest {
         assertIs<LoopGuardDecision.Allowed>(budget.check("one", "1"))
         assertIs<LoopGuardDecision.Blocked>(budget.check("two", "2"))
     }
+}
+
+
+private fun <T> runSuspend(block: suspend () -> T): T {
+    val latch = CountDownLatch(1)
+    val result = AtomicReference<Result<T>>()
+    block.startCoroutine(object : Continuation<T> {
+        override val context = EmptyCoroutineContext
+        override fun resumeWith(value: Result<T>) {
+            result.set(value)
+            latch.countDown()
+        }
+    })
+    check(latch.await(5, TimeUnit.SECONDS)) { "Suspending test timed out." }
+    return result.get().getOrThrow()
 }

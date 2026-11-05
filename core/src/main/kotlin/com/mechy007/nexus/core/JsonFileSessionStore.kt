@@ -32,6 +32,7 @@ class JsonFileSessionStore(private val directory: File) : SessionStore {
         } finally {
             if (temp.exists()) temp.delete()
         }
+        Unit
     }
 
     override suspend fun delete(id: SessionId) = synchronized(lock) {

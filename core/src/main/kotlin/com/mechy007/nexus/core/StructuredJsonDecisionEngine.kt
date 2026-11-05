@@ -3,13 +3,11 @@ package com.mechy007.nexus.core
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.google.gson.JsonPrimitive
 
 /**
  * Converts a provider's strict JSON response into an AgentDecision.
- *
- * The model can propose a tool call, but this class never executes it or grants
- * permissions. AgentRuntime remains the only execution and authorization boundary.
+ * The model can propose a tool call, but AgentRuntime remains the only
+ * execution and authorization boundary.
  */
 class StructuredJsonDecisionEngine(
     private val router: ProviderRouter,
@@ -24,12 +22,11 @@ class StructuredJsonDecisionEngine(
     }
 
     override suspend fun decide(context: AgentTurnContext): AgentDecision {
-        val prompt = buildPrompt(context)
         val response = router.generate(
             GenerationRequest(
                 session = context.session,
                 agent = context.agent,
-                prompt = prompt,
+                prompt = buildPrompt(context),
                 preferredProvider = preferredProvider,
                 requiredCapabilities = ProviderCapabilities(text = true)
             )
@@ -52,20 +49,19 @@ class StructuredJsonDecisionEngine(
     }
 
     private fun parseToolCall(root: JsonObject, context: AgentTurnContext): AgentDecision {
-        val toolName = root.get("tool")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+        val name = root.get("tool")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
             ?.takeIf(String::isNotBlank)
             ?: throw IllegalArgumentException("Tool decision requires a non-empty tool name.")
-        val toolId = ToolId(toolName)
-        val registration = tools.find(toolId)?.takeIf { it.enabled }
-            ?: throw IllegalArgumentException("Decision references an unavailable tool.")
+        val toolId = ToolId(name)
+        require(tools.find(toolId)?.enabled == true) { "Decision references an unavailable tool." }
         val rawArguments = root.get("arguments")
         require(rawArguments != null && rawArguments.isJsonObject) { "Tool arguments must be a JSON object." }
         val arguments = linkedMapOf<String, String>()
-        rawArguments.asJsonObject.entrySet().forEach { (name, value) ->
-            require(name.isNotBlank() && value.isJsonPrimitive && value.asJsonPrimitive.isString) {
+        rawArguments.asJsonObject.entrySet().forEach { (key, value) ->
+            require(key.isNotBlank() && value.isJsonPrimitive && value.asJsonPrimitive.isString) {
                 "Tool arguments must contain only named string values."
             }
-            arguments[name] = value.asString
+            arguments[key] = value.asString
         }
         return AgentDecision.CallTool(
             ToolRequest(
@@ -84,27 +80,23 @@ class StructuredJsonDecisionEngine(
                 addProperty("name", registration.adapter.id.value)
                 addProperty("description", registration.adapter.description)
                 add("requiredCapabilities", JsonArray().apply {
-                    registration.requiredCapabilities.sorted().forEach(::add)
+                    registration.requiredCapabilities.sorted().forEach { add(it) }
                 })
             })
         }
         val conversation = context.session.messages.takeLast(maxConversationMessages)
-            .joinToString("\n") { message ->
-                "${message.role.name}: ${message.content}"
-            }
+            .joinToString("\n") { "${it.role.name}: ${it.content}" }
         val memories = context.relevantMemories.joinToString("\n") { "- ${it.text}" }
         return buildString {
-            append("You are the decision engine for NEXUS agent ")
-            append(context.agent.displayName)
+            append("You are the decision engine for NEXUS agent ").append(context.agent.displayName)
             append(". Return exactly one JSON object and no Markdown.\n")
-            append("For a normal response use: {\"type\":\"reply\",\"text\":\"...\"}.\n")
-            append("To request a tool use: {\"type\":\"tool_call\",\"tool\":\"name\",\"arguments\":{\"key\":\"value\"}}.\n")
-            append("Only request tools listed below. All argument values must be strings. Never claim a tool ran. ")
-            append("Tool requests are independently checked for permission by NEXUS.\n")
+            append("Reply format: {\"type\":\"reply\",\"text\":\"...\"}.\n")
+            append("Tool format: {\"type\":\"tool_call\",\"tool\":\"name\",\"arguments\":{\"key\":\"value\"}}.\n")
+            append("Only request listed tools. Argument values must be strings. Never claim a tool ran. ")
+            append("NEXUS independently checks permissions before execution.\n")
             append("Available tools: ").append(available).append("\n")
             if (memories.isNotBlank()) append("Relevant saved memories:\n").append(memories).append("\n")
-            append("Conversation:\n").append(conversation)
-            append("\nReturn a single decision JSON object.")
+            append("Conversation:\n").append(conversation).append("\nReturn one decision JSON object.")
         }
     }
 }

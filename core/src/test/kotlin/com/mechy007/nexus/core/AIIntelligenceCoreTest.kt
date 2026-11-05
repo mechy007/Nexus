@@ -41,8 +41,7 @@ class AIIntelligenceCoreTest {
         val text = FakeProvider(profile("text"))
         val vision = FakeProvider(profile("vision", vision = true))
         val registry = InMemoryProviderRegistry().apply { register(text); register(vision) }
-        val router = IntelligentModelRouter(registry)
-        val decisions = router.plan(ModelRouteRequirements(
+        val decisions = IntelligentModelRouter(registry).plan(ModelRouteRequirements(
             requiredCapabilities = ProviderCapabilities(text = true, vision = true)
         ))
         assertEquals(listOf(ProviderId("vision")), decisions.map { it.providerId })
@@ -61,13 +60,12 @@ class AIIntelligenceCoreTest {
                 }
             })
         }
-        val router = IntelligentModelRouter(registry)
-        val engine = MultiModelReasoningEngine(router)
-        val input = ReasoningInput(
-            NexusSession(), AgentProfile(AgentId("nexus"), "NEXUS", "test", "system"),
-            "Design a complete architecture", ReasoningDepth.EXPERT
+        val result = MultiModelReasoningEngine(IntelligentModelRouter(registry)).reason(
+            ReasoningInput(
+                NexusSession(), AgentProfile(AgentId("nexus"), "NEXUS", "test", "system"),
+                "Design a complete architecture", ReasoningDepth.EXPERT
+            )
         )
-        val result = engine.reason(input)
         assertEquals("Final verified answer", result.answer)
         assertEquals(
             listOf(ModelReasoningRole.PLANNER, ModelReasoningRole.SOLVER, ModelReasoningRole.CRITIC, ModelReasoningRole.SYNTHESIZER),
@@ -76,6 +74,19 @@ class AIIntelligenceCoreTest {
         assertEquals(4, result.contributions.map { it.providerId }.distinct().size)
         assertTrue(result.collaborationUsed)
         assertTrue(result.verificationRequested)
+    }
+
+    @Test fun complexTaskFallsBackToSingleModelWhenOnlyOneProviderIsAvailable() = runBlocking {
+        val provider = FakeProvider(profile("only"))
+        val registry = InMemoryProviderRegistry().apply { register(provider) }
+        val result = MultiModelReasoningEngine(IntelligentModelRouter(registry)).reason(
+            ReasoningInput(
+                NexusSession(), AgentProfile(AgentId("nexus"), "NEXUS", "test", "system"),
+                "Design a complete architecture", ReasoningDepth.EXPERT
+            )
+        )
+        assertEquals(1, result.contributions.size)
+        assertFalse(result.collaborationUsed)
     }
 
     @Test fun simpleReasoningUsesOneModel() = runBlocking {
@@ -103,12 +114,11 @@ class AIIntelligenceCoreTest {
     @Test fun automaticLearningPromotesValidatedQualityImprovement() = runBlocking {
         val store = InMemoryLearningConfigurationStore()
         val evaluator = LearningCandidateEvaluator { config ->
-            if (config.values["quality"] == "0.8") LearningMetrics(0.8, latencyMillis = 105, costUnits = 10.5)
+            if (config.values["qualityWeight"] == "0.8") LearningMetrics(0.8, latencyMillis = 105, costUnits = 10.5)
             else LearningMetrics(0.5, latencyMillis = 100, costUnits = 10.0)
         }
-        val service = AutomaticLearningService(store, evaluator)
-        val decision = service.evaluateAndPromote(
-            LearningCandidate("candidate-1", LearningTarget.ROUTING_WEIGHTS, mapOf("quality" to "0.8"), "Measured improvement")
+        val decision = AutomaticLearningService(store, evaluator).evaluateAndPromote(
+            LearningCandidate("candidate-1", LearningTarget.ROUTING_WEIGHTS, mapOf("qualityWeight" to "0.8"), "Measured improvement")
         )
         assertTrue(decision.promoted)
         assertEquals(1, store.current(LearningTarget.ROUTING_WEIGHTS).version)
@@ -117,14 +127,20 @@ class AIIntelligenceCoreTest {
     @Test fun automaticLearningRejectsSafetyRegression() = runBlocking {
         val store = InMemoryLearningConfigurationStore()
         val evaluator = LearningCandidateEvaluator { config ->
-            if (config.values["candidate"] == "unsafe") LearningMetrics(0.9, safetyRegressionCount = 1)
+            if (config.values["approvedTemplateId"] == "unsafe") LearningMetrics(0.9, safetyRegressionCount = 1)
             else LearningMetrics(0.5)
         }
         val decision = AutomaticLearningService(store, evaluator).evaluateAndPromote(
-            LearningCandidate("unsafe", LearningTarget.PROMPT_TEMPLATE, mapOf("candidate" to "unsafe"), "Test rejection")
+            LearningCandidate("unsafe", LearningTarget.PROMPT_TEMPLATE, mapOf("approvedTemplateId" to "unsafe"), "Test rejection")
         )
         assertFalse(decision.promoted)
         assertEquals(0, store.current(LearningTarget.PROMPT_TEMPLATE).version)
+    }
+
+    @Test fun learningCandidateCannotModifyProtectedSettings() {
+        assertFailsWith<IllegalArgumentException> {
+            LearningCandidate("bad", LearningTarget.ROUTING_WEIGHTS, mapOf("permissionPolicy" to "allow-all"), "Must be rejected")
+        }
     }
 
     @Test fun webUrlPolicyRejectsNonHttpsAndLocalHosts() {

@@ -18,6 +18,8 @@ class BraveWebSearchProvider(
 ) : WebSearchProvider {
     override val id: String = "brave-search"
 
+    init { require(endpoint.startsWith("https://", ignoreCase = true)) { "Search endpoint must use HTTPS." } }
+
     override suspend fun search(request: WebSearchRequest): WebSearchResponse {
         val key = credentials.resolve("BRAVE_SEARCH_API_KEY")
             ?.takeIf { it.isNotBlank() }

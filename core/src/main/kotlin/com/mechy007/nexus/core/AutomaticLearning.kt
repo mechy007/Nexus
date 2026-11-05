@@ -16,15 +16,31 @@ data class LearningMetrics(
 
 data class LearningConfiguration(val version: Long = 0, val values: Map<String, String> = emptyMap())
 data class LearningCandidate(val id: String, val target: LearningTarget, val values: Map<String, String>, val rationale: String) {
-    init { require(id.isNotBlank() && values.isNotEmpty() && rationale.isNotBlank() && values.keys.none { it.isBlank() }) }
+    init {
+        require(id.isNotBlank() && values.isNotEmpty() && rationale.isNotBlank())
+        require(rationale.length <= 500 && values.keys.none { it.isBlank() })
+        require(values.all { (key, value) -> key in allowedKeys(target) && value.length <= 4000 }) {
+            "Candidate contains a setting outside the approved learning surface."
+        }
+        if (target == LearningTarget.REASONING_POLICY && "maximumModelCalls" in values) {
+            require(values.getValue("maximumModelCalls").toIntOrNull()?.let { it in 1..8 } == true)
+        }
+    }
+
+    companion object {
+        private fun allowedKeys(target: LearningTarget): Set<String> = when (target) {
+            LearningTarget.ROUTING_WEIGHTS -> setOf("qualityWeight", "reliabilityWeight", "latencyWeight", "costWeight", "localPreferenceWeight")
+            LearningTarget.PROMPT_TEMPLATE -> setOf("approvedTemplateId", "approvedTemplateVersion")
+            LearningTarget.CONTEXT_RETRIEVAL_WEIGHTS -> setOf("semanticWeight", "recencyWeight", "keywordWeight")
+            LearningTarget.REASONING_POLICY -> setOf("criticThreshold", "plannerThreshold", "maximumModelCalls")
+        }
+    }
 }
 data class LearningDecision(
     val promoted: Boolean, val reason: String, val baseline: LearningMetrics,
     val candidate: LearningMetrics, val resultingVersion: Long
 )
-
 fun interface LearningCandidateEvaluator { suspend fun evaluate(configuration: LearningConfiguration): LearningMetrics }
-
 interface LearningConfigurationStore {
     fun current(target: LearningTarget): LearningConfiguration
     fun promote(target: LearningTarget, expectedVersion: Long, values: Map<String, String>): LearningConfiguration?
@@ -43,10 +59,7 @@ class InMemoryLearningConfigurationStore : LearningConfigurationStore {
     }
 }
 
-/**
- * Automatically promotes validated strategy changes only. Security rules, permissions,
- * identity and retention policies are intentionally not representable as learning targets.
- */
+/** Automatically promotes validated strategy changes only; protected policies are not learning targets. */
 class AutomaticLearningService(
     private val store: LearningConfigurationStore,
     private val evaluator: LearningCandidateEvaluator,

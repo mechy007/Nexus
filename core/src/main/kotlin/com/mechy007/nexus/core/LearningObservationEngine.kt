@@ -12,7 +12,7 @@ data class LearningObservation(
     val occurredAt: Instant = Instant.now()
 ) {
     init {
-        require(id.isNotBlank() && outcome.isNotBlank())
+        require(id.isNotBlank() && outcome.isNotBlank() && outcome.length <= 256)
         require(qualityScore in 0.0..1.0 && latencyMillis >= 0 && costUnits >= 0.0)
     }
 }
@@ -22,13 +22,18 @@ interface LearningObservationStore {
     suspend fun recent(target: LearningTarget, limit: Int): List<LearningObservation>
 }
 
-class InMemoryLearningObservationStore : LearningObservationStore {
+class InMemoryLearningObservationStore(private val maxObservations: Int = 5000) : LearningObservationStore {
     private val lock = Any()
     private val observations = mutableListOf<LearningObservation>()
+    init { require(maxObservations > 0) }
     override suspend fun append(observation: LearningObservation) {
         synchronized(lock) {
             observations.removeAll { it.id == observation.id }
             observations += observation
+            if (observations.size > maxObservations) {
+                observations.sortByDescending { it.occurredAt }
+                observations.subList(maxObservations, observations.size).clear()
+            }
         }
     }
     override suspend fun recent(target: LearningTarget, limit: Int): List<LearningObservation> {
@@ -47,14 +52,14 @@ fun interface LearningCandidateProposer {
     ): LearningCandidate?
 }
 
-/** Turns recorded outcomes into candidate changes, then delegates all promotion to the evaluation gate. */
+/** Turns recorded outcomes into candidates, then delegates all promotion to the evaluation gate. */
 class AutomaticLearningEngine(
     private val observations: LearningObservationStore,
     private val proposer: LearningCandidateProposer,
     private val service: AutomaticLearningService,
+    private val configurationStore: LearningConfigurationStore,
     private val minimumObservations: Int = 20,
-    private val observationWindow: Int = 200,
-    private val configurationStore: LearningConfigurationStore
+    private val observationWindow: Int = 200
 ) {
     init { require(minimumObservations > 0 && observationWindow >= minimumObservations) }
 

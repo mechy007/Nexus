@@ -38,8 +38,12 @@ class MultiModelReasoningEngine(
     override suspend fun reason(input: ReasoningInput): ReasoningExecutionResult {
         val contributions = mutableListOf<ModelContribution>()
         val used = linkedSetOf<ProviderId>()
+        val baseRequirements = input.routeRequirements.copy(requiredCapabilities = ProviderCapabilities(text = true))
+        val hasMultipleProviders = router.plan(baseRequirements).size > 1
         var plan = ""
-        if (policy.enabled && input.depth >= policy.plannerFrom && policy.maximumModelCalls >= 2) {
+        if (policy.enabled && hasMultipleProviders &&
+            input.depth >= policy.plannerFrom && policy.maximumModelCalls >= 2
+        ) {
             val result = invoke(input, ModelReasoningRole.PLANNER,
                 "Create a concise plan and identify uncertainties. Do not answer yet.", used)
             if (result != null) { contributions += result; used += result.providerId; plan = result.content }

@@ -43,15 +43,20 @@ object PublicWebUrlPolicy {
         if (bytes.size == 4) {
             val a = bytes[0].toInt() and 0xff
             val b = bytes[1].toInt() and 0xff
+            val c = bytes[2].toInt() and 0xff
             if (a == 0 || a == 10 || a == 127 || a >= 224) return false
             if (a == 100 && b in 64..127) return false
             if (a == 169 && b == 254) return false
             if (a == 172 && b in 16..31) return false
-            if (a == 192 && (b == 168 || b == 0)) return false
+            if (a == 192 && (b == 0 || b == 168 || (b == 0 && c == 2))) return false
             if (a == 198 && b in 18..19) return false
+            if (a == 198 && b == 51 && c == 100) return false
+            if (a == 203 && b == 0 && c == 113) return false
         } else if (bytes.size == 16) {
             val first = bytes[0].toInt() and 0xff
+            val second = bytes[1].toInt() and 0xff
             if ((first and 0xfe) == 0xfc) return false
+            if (first == 0x20 && second == 0x01 && bytes[2].toInt() == 0x0d && bytes[3].toInt() == 0xb8) return false
         }
         return true
     }

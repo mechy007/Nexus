@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -126,6 +128,12 @@ private fun NexusHome() {
                 .padding(top = 22.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Image(
+                painter = painterResource(R.drawable.ic_nexus_launcher_foreground),
+                contentDescription = "NEXUS logo",
+                modifier = Modifier.size(38.dp)
+            )
+            Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text("N E X U S", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text("PERSONAL AI COMPANION", color = Color(0xFF999BB8), fontSize = 9.sp, letterSpacing = 2.sp)

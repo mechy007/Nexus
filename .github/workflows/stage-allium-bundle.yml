@@ -1,0 +1,82 @@
+name: Stage Allium integration bundle
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "NEXUS-Allium-Live2D-Integration-Bundle.zip"
+      - "integration-staging/**"
+      - ".github/workflows/stage-allium-bundle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: stage-allium-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  extract-and-validate:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'feature/allium-live2d-branding'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Extract and validate archive (idempotent)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, pathlib, zipfile
+          archive = pathlib.Path("NEXUS-Allium-Live2D-Integration-Bundle.zip")
+          target = pathlib.Path("integration-staging")
+          model = target / "nexus_allium_integration/app/src/main/assets/ariu/ariu.model3.json"
+          core = target / "nexus_allium_integration/app/libs/Live2DCubismCore.aar"
+
+          if archive.is_file():
+              with zipfile.ZipFile(archive) as z:
+                  bad = z.testzip()
+                  if bad:
+                      raise SystemExit(f"ZIP CRC failure: {bad}")
+                  root = target.resolve()
+                  for info in z.infolist():
+                      dest = (target / info.filename).resolve()
+                      if dest != root and root not in dest.parents:
+                          raise SystemExit(f"Unsafe ZIP path: {info.filename}")
+                  z.extractall(target)
+              print(f"Archive SHA-256: {hashlib.sha256(archive.read_bytes()).hexdigest()}")
+          elif model.is_file() and core.is_file():
+              print("Archive already extracted; validating committed staging tree.")
+          else:
+              raise SystemExit("Neither source ZIP nor previously extracted Allium bundle exists")
+
+          if not model.is_file() or not core.is_file():
+              raise SystemExit("Required Allium model or Cubism Core AAR is missing")
+          with zipfile.ZipFile(core) as aar:
+              if "jni/arm64-v8a/libLive2DCubismCoreJNI.so" not in set(aar.namelist()):
+                  raise SystemExit("Cubism Core AAR has no ARM64 JNI library")
+          print(f"Extracted entries: {sum(1 for p in target.rglob('*') if p.is_file())}")
+          print("Allium model, Cubism AAR, ARM64 JNI and staging checks passed.")
+          PY
+
+      - name: Commit extracted integration source bundle
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -f NEXUS-Allium-Live2D-Integration-Bundle.zip ]; then
+            rm NEXUS-Allium-Live2D-Integration-Bundle.zip
+          fi
+          git add integration-staging NEXUS-Allium-Live2D-Integration-Bundle.zip 2>/dev/null || git add integration-staging
+          if git diff --cached --quiet; then
+            echo "No extracted changes to commit."
+          else
+            git commit -m "Extract Allium Live2D integration bundle"
+            git push origin HEAD:${{ github.head_ref || github.ref_name }}
+          fi

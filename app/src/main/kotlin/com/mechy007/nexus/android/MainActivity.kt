@@ -1,9 +1,12 @@
 package com.mechy007.nexus.android
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -36,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -51,16 +56,38 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import com.live2d.demo.full.GLRenderer
+import com.live2d.demo.full.LAppDelegate
 
 class MainActivity : ComponentActivity() {
+    internal var alliumGlView: GLSurfaceView? = null
+    internal var alliumInitialized = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { NexusTheme { NexusHome() } }
     }
+
+    override fun onResume() {
+        super.onResume()
+        alliumGlView?.onResume()
+    }
+
+    override fun onPause() {
+        alliumGlView?.onPause()
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        alliumGlView?.onPause()
+        if (alliumInitialized) LAppDelegate.getInstance().onDestroy()
+        alliumGlView = null
+        super.onDestroy()
+    }
 }
 
 private data class ChatLine(val id: Int, val text: String, val fromUser: Boolean)
-
 private enum class AvatarMode { ALLIUM, ORB }
 
 @Composable
@@ -84,7 +111,7 @@ private fun NexusHome() {
         mutableStateListOf(
             ChatLine(
                 0,
-                "Welcome. The NEXUS Android interface is ready for development. The AI engine and Live2D renderer are not connected in this build yet.",
+                "Welcome to NEXUS. Allium is running through the Live2D Cubism renderer. The AI runtime connection is still pending.",
                 false
             )
         )
@@ -142,10 +169,8 @@ private fun NexusHome() {
         }
 
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(238.dp),
-            color = Color(0xFF171A30),
+            modifier = Modifier.fillMaxWidth().height(238.dp),
+            color = Color(0xFF111626),
             shape = RoundedCornerShape(28.dp)
         ) {
             Box(
@@ -158,34 +183,36 @@ private fun NexusHome() {
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier
-                            .size(112.dp)
-                            .background(
+                if (avatarMode == AvatarMode.ALLIUM) {
+                    AlliumLive2D(
+                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(28.dp))
+                    )
+                } else {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier.size(112.dp).background(
                                 Brush.radialGradient(
                                     listOf(Color(0xFF9276D6), Color(0xFF3C386D), Color(0xFF1C2038))
-                                ),
-                                CircleShape
+                                ), CircleShape
                             ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            if (avatarMode == AvatarMode.ALLIUM) "A" else "✦",
-                            fontSize = 48.sp,
-                            color = Color(0xFFF1E9FF),
-                            fontWeight = FontWeight.Light
-                        )
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("✦", fontSize = 48.sp, color = Color(0xFFF1E9FF), fontWeight = FontWeight.Light)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Text("NEXUS ORB", fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                        Text("Alternative avatar mode", color = Color(0xFFB9B1D2), fontSize = 10.sp)
                     }
-                    Spacer(Modifier.height(10.dp))
+                }
+                Column(
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
-                        if (avatarMode == AvatarMode.ALLIUM) "ALLIUM" else "NEXUS ORB",
+                        if (avatarMode == AvatarMode.ALLIUM) "ALLIUM · LIVE2D" else "NEXUS ORB",
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 3.sp
-                    )
-                    Text(
-                        if (avatarMode == AvatarMode.ALLIUM) "Live2D integration pending" else "Alternative avatar mode",
-                        color = Color(0xFFB9B1D2),
+                        letterSpacing = 2.sp,
+                        color = Color(0xFFEDE7FF),
                         fontSize = 10.sp
                     )
                     Row {
@@ -205,9 +232,7 @@ private fun NexusHome() {
         )
 
         LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             items(chat, key = { it.id }) { line ->
@@ -237,9 +262,7 @@ private fun NexusHome() {
         }
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 10.dp, bottom = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Button(
@@ -274,4 +297,45 @@ private fun NexusHome() {
             }
         }
     }
+}
+
+@Composable
+private fun AlliumLive2D(modifier: Modifier = Modifier) {
+    val activity = androidx.compose.ui.platform.LocalContext.current as? MainActivity
+    val glView = remember(activity) {
+        requireNotNull(activity) { "Allium renderer requires an Activity context." }.let { host ->
+            LAppDelegate.getInstance().onStart(host)
+            host.alliumInitialized = true
+            GLSurfaceView(host).apply {
+                host.alliumGlView = this
+                setEGLContextClientVersion(2)
+                setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+                setRenderer(GLRenderer())
+                renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+                preserveEGLContextOnPause = true
+                setOnTouchListener { view, event ->
+                    val x = event.x
+                    val y = event.y
+                    queueEvent {
+                        when (event.action) {
+                            MotionEvent.ACTION_DOWN -> LAppDelegate.getInstance().onTouchBegan(x, y)
+                            MotionEvent.ACTION_UP -> LAppDelegate.getInstance().onTouchEnd(x, y)
+                            MotionEvent.ACTION_MOVE -> LAppDelegate.getInstance().onTouchMoved(x, y)
+                        }
+                    }
+                    true
+                }
+            }
+        }
+    }
+
+    DisposableEffect(glView) {
+        glView.onResume()
+        onDispose {
+            glView.onPause()
+            if (activity?.alliumGlView === glView) activity.alliumGlView = null
+        }
+    }
+
+    AndroidView(factory = { glView }, modifier = modifier)
 }

@@ -4,16 +4,15 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
-import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
-import java.io.ByteArrayOutputStream
 import java.net.URI
 import java.nio.charset.StandardCharsets
 
 /**
- * Bounded HTTPS page reader. Redirects are revalidated and response bytes are
- * streamed under a hard cap. Hosts should also enforce egress rules against DNS rebinding.
+ * HTTPS page reader with redirect validation, declared and received body limits,
+ * and content-type restrictions. Hosts should enforce egress rules against DNS rebinding.
  */
 class KtorWebPageFetcher(
     private val timeoutMillis: Long = 15000,
@@ -52,19 +51,9 @@ class KtorWebPageFetcher(
             require(declaredLength == null || declaredLength <= maxResponseBytes) {
                 "Web page exceeds the configured response-size limit."
             }
-            val channel = response.bodyAsChannel()
-            val output = ByteArrayOutputStream()
-            val buffer = ByteArray(8192)
-            var total = 0
-            while (true) {
-                val read = channel.readAvailable(buffer, 0, minOf(buffer.size, maxResponseBytes + 1 - total))
-                if (read < 0) break
-                if (read == 0) continue
-                total += read
-                require(total <= maxResponseBytes) { "Web page exceeds the configured response-size limit." }
-                output.write(buffer, 0, read)
-            }
-            val raw = String(output.toByteArray(), StandardCharsets.UTF_8)
+            val bytes = response.bodyAsBytes()
+            require(bytes.size <= maxResponseBytes) { "Web page exceeds the configured response-size limit." }
+            val raw = String(bytes, StandardCharsets.UTF_8)
             val title = Regex("(?is)<title[^>]*>(.*?)</title>").find(raw)?.groupValues?.get(1)
                 ?.replace(Regex("<[^>]+>"), " ")?.replace(Regex("\\s+"), " ")?.trim().orEmpty()
             val text = if (contentType.contains("text/plain", true)) raw else extractReadableText(raw)

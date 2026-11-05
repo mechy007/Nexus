@@ -19,6 +19,7 @@ The objective is to add broad capability coverage, then verify each feature. A r
 - [ ] Context budgeting and summarization
 - [x] NEXUS-owned agent execution loop with bounded steps and tool-decision boundary
 - [ ] Provider-native structured tool-call planning and validation
+- [ ] LiteRT-LM Android engine adapter and target-device benchmark
 
 ## Memory and observability
 - [x] Platform-independent agent trace model and replaceable trace-store contract
@@ -26,7 +27,10 @@ The objective is to add broad capability coverage, then verify each feature. A r
 - [x] Local JSON session persistence and migrations (schema version 1; migration framework remains future work)
 - [x] Session persistence across process restarts
 - [x] Scoped local memory with export, search, expiry, and deletion
-- [ ] Searchable semantic long-term memory and embeddings
+- [x] Embedding-provider and vector-index contracts
+- [x] Persistent cosine-similarity vector index and scoped semantic retrieval
+- [ ] On-device embedding model and automatic memory extraction
+- [ ] Re-indexing/migrations and encrypted-at-rest storage
 - [ ] User review UI for memory and trace deletion
 
 ## Skills and tools
@@ -35,7 +39,9 @@ The objective is to add broad capability coverage, then verify each feature. A r
 - [x] Unified native tool registry
 - [x] Permission-gated tool execution and user-approval handoff
 - [x] Tool execution audit and trace events
-- [ ] MCP client, external server discovery, and connection management
+- [x] MCP remote-tool bridge contracts, allowlisting, and unreviewed trust defaults
+- [ ] Concrete official Kotlin MCP SDK Streamable HTTP connector and credential flow
+- [ ] MCP resources/prompts browser and server management UI
 - [ ] Tool input schema validation and execution timeouts
 - [ ] Durable approval checkpoints and automatic task resumption
 - [ ] Search, file, and automation connectors
@@ -54,4 +60,4 @@ The objective is to add broad capability coverage, then verify each feature. A r
 - [ ] End-to-end tests on the target phone
 - [ ] APK packaging, signing, upgrade and data-preservation tests
 
-See [the OpenJarvis integration audit](OPENJARVIS_INTEGRATION.md), [the broader open-source integration audit](OPEN_SOURCE_INTEGRATION_AUDIT.md), and [the runtime/tool/persistence integration note](AGENT_RUNTIME_INTEGRATION.md).
+See [the OpenJarvis integration audit](OPENJARVIS_INTEGRATION.md), [the broader open-source integration audit](OPEN_SOURCE_INTEGRATION_AUDIT.md), [the runtime/tool/persistence integration note](AGENT_RUNTIME_INTEGRATION.md), [MCP integration](MCP_INTEGRATION.md), [local inference](LOCAL_INFERENCE.md), and [semantic memory](SEMANTIC_MEMORY.md).

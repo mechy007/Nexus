@@ -4,6 +4,8 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CancellationException
 import java.util.UUID
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 
 sealed interface AgentDecision {
     data class Reply(val text: String) : AgentDecision {
@@ -68,7 +70,8 @@ class AgentRuntime(
     private val audit: AuditSink,
     private val traces: TraceStore,
     private val memory: MemoryStore? = null,
-    private val maxSteps: Int = 12
+    private val maxSteps: Int = 12,
+    private val toolExecutionPolicy: ToolExecutionPolicy = ToolExecutionPolicy()
 ) {
     init { require(maxSteps > 0) }
 
@@ -174,7 +177,12 @@ class AgentRuntime(
 
                     val before = System.nanoTime()
                     val toolResult = try {
-                        registration.adapter.execute(request)
+                        toolExecutionPolicy.validate(request)
+                        toolExecutionPolicy.bound(withTimeout(toolExecutionPolicy.timeoutMillis) {
+                            registration.adapter.execute(request)
+                        })
+                    } catch (_: TimeoutCancellationException) {
+                        ToolResult(false, errorCode = "TOOL_TIMEOUT")
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {

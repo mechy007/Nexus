@@ -13,7 +13,8 @@ The objective is to add broad capability coverage, then verify each feature. A r
 - [ ] Built-in Lara, JARVIS, FRIDAY, and EDITH profiles
 - [x] Provider registry and capability-aware routing
 - [x] Deterministic provider fallback and cancellation propagation
-- [ ] Concrete cloud-provider HTTP adapters (OpenAI, Gemini, OpenRouter, Groq)
+- [x] Concrete HTTP adapters for OpenAI, Gemini, OpenRouter, and Groq (mock-transport tests; live credentials not verified)
+- [x] Runtime environment-based API-key resolution
 - [ ] Provider health checks and configurable routing policies
 - [ ] Streaming, request timeouts, and retry/backoff policies
 - [ ] Context budgeting and summarization

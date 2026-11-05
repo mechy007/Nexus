@@ -203,22 +203,26 @@ private fun NexusHome() {
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             items(chat, key = { it.id }) { line ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth(if (line.fromUser) 0.88f else 0.94f)
-                        .align(if (line.fromUser) Alignment.End else Alignment.Start),
-                    color = if (line.fromUser) Color(0xFF393052) else Color(0xFF171D2D),
-                    shape = RoundedCornerShape(18.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (line.fromUser) Arrangement.End else Arrangement.Start
                 ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(
-                            if (line.fromUser) "YOU" else "NEXUS",
-                            color = if (line.fromUser) Color(0xFFCBBEFF) else Color(0xFF8FD8E8),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.5.sp
-                        )
-                        Spacer(Modifier.height(5.dp))
-                        Text(line.text, color = Color(0xFFE9E7F4), fontSize = 13.sp, lineHeight = 19.sp)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(if (line.fromUser) 0.88f else 0.94f),
+                        color = if (line.fromUser) Color(0xFF393052) else Color(0xFF171D2D),
+                        shape = RoundedCornerShape(18.dp)
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(
+                                if (line.fromUser) "YOU" else "NEXUS",
+                                color = if (line.fromUser) Color(0xFFCBBEFF) else Color(0xFF8FD8E8),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.5.sp
+                            )
+                            Spacer(Modifier.height(5.dp))
+                            Text(line.text, color = Color(0xFFE9E7F4), fontSize = 13.sp, lineHeight = 19.sp)
+                        }
                     }
                 }
             }

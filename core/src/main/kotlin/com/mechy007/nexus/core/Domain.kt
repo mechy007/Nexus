@@ -54,13 +54,26 @@ data class ProviderProfile(
     val enabled: Boolean = true
 )
 
+enum class MemoryScope { USER, AGENT, SESSION }
+
 data class MemoryRecord(
     val id: String,
     val text: String,
     val tags: Set<String> = emptySet(),
     val createdAt: Instant = Instant.now(),
-    val sourceSessionId: SessionId? = null
-)
+    val sourceSessionId: SessionId? = null,
+    val scope: MemoryScope = MemoryScope.USER,
+    val scopeId: String? = null,
+    val expiresAt: Instant? = null
+) {
+    init {
+        require(id.isNotBlank()) { "Memory id cannot be blank." }
+        require(text.isNotBlank()) { "Memory text cannot be blank." }
+        require(scope == MemoryScope.USER || !scopeId.isNullOrBlank()) {
+            "AGENT and SESSION memories require a scopeId."
+        }
+    }
+}
 
 data class ToolRequest(
     val id: String = UUID.randomUUID().toString(),

@@ -14,29 +14,31 @@ The objective is to add broad capability coverage, then verify each feature. A r
 - [x] Provider registry and capability-aware routing
 - [x] Deterministic provider fallback and cancellation propagation
 - [x] Concrete HTTP adapters for OpenAI, Gemini, OpenRouter, and Groq (mock-transport tests; live credentials not verified)
-- [x] Runtime environment-based API-key resolution
 - [ ] Provider health checks and configurable routing policies
 - [ ] Streaming, request timeouts, and retry/backoff policies
 - [ ] Context budgeting and summarization
-- [ ] Structured tool-call planning and validation
+- [x] NEXUS-owned agent execution loop with bounded steps and tool-decision boundary
+- [ ] Provider-native structured tool-call planning and validation
 
 ## Memory and observability
 - [x] Platform-independent agent trace model and replaceable trace-store contract
-- [ ] Durable trace adapter and user-visible trace inspection/deletion
-- [ ] Local database implementation for sessions and memory
-- [ ] Session persistence and migrations
-- [ ] Searchable long-term memory
-- [ ] User review, export, and deletion
+- [x] Durable JSON trace adapter with inspection and deletion
+- [x] Local JSON session persistence and migrations (schema version 1; migration framework remains future work)
+- [x] Session persistence across process restarts
+- [x] Scoped local memory with export, search, expiry, and deletion
+- [ ] Searchable semantic long-term memory and embeddings
+- [ ] User review UI for memory and trace deletion
 
 ## Skills and tools
 - [x] Declarative skill manifests and capability/trust policy
 - [x] Per-turn repeated-call, ping-pong and call-budget guard
-- [ ] Permission manager and user-confirmation flow
-- [ ] Permission-gated skill/tool executor
-- [ ] Tool registry and audit log
-- [ ] Search and file connectors
-- [ ] Automation connector
-- [ ] Execution history and cancellation
+- [x] Unified native tool registry
+- [x] Permission-gated tool execution and user-approval handoff
+- [x] Tool execution audit and trace events
+- [ ] MCP client, external server discovery, and connection management
+- [ ] Tool input schema validation and execution timeouts
+- [ ] Durable approval checkpoints and automatic task resumption
+- [ ] Search, file, and automation connectors
 
 ## Voice and avatar
 - [ ] Speech-to-text and text-to-speech adapters
@@ -52,4 +54,4 @@ The objective is to add broad capability coverage, then verify each feature. A r
 - [ ] End-to-end tests on the target phone
 - [ ] APK packaging, signing, upgrade and data-preservation tests
 
-See [the OpenJarvis integration audit](OPENJARVIS_INTEGRATION.md) and [the broader open-source integration audit](OPEN_SOURCE_INTEGRATION_AUDIT.md) for upstream source selection and adaptation notes.
+See [the OpenJarvis integration audit](OPENJARVIS_INTEGRATION.md), [the broader open-source integration audit](OPEN_SOURCE_INTEGRATION_AUDIT.md), and [the runtime/tool/persistence integration note](AGENT_RUNTIME_INTEGRATION.md).

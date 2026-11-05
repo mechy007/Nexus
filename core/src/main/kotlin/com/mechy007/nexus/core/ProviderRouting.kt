@@ -1,6 +1,6 @@
 package com.mechy007.nexus.core
 
-import kotlinx.coroutines.CancellationException
+import java.util.concurrent.CancellationException
 
 /**
  * Thread-safe in-memory registry. Registering an existing ID replaces its adapter,

@@ -10,7 +10,8 @@ data class GenerationRequest(
     val session: NexusSession,
     val agent: AgentProfile,
     val prompt: String,
-    val preferredProvider: ProviderId? = null
+    val preferredProvider: ProviderId? = null,
+    val requiredCapabilities: ProviderCapabilities = ProviderCapabilities()
 )
 
 data class GenerationResponse(
@@ -22,6 +23,13 @@ data class GenerationResponse(
 interface ProviderAdapter {
     val profile: ProviderProfile
     suspend fun generate(request: GenerationRequest): GenerationResponse
+}
+
+interface ProviderRegistry {
+    fun all(): List<ProviderAdapter>
+    fun find(id: ProviderId): ProviderAdapter?
+    fun register(adapter: ProviderAdapter)
+    fun remove(id: ProviderId): Boolean
 }
 
 interface ProviderRouter {

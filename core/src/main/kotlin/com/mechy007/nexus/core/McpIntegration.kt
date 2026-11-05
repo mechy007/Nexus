@@ -1,6 +1,7 @@
 package com.mechy007.nexus.core
 
 import java.net.URI
+import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentHashMap
 
 data class McpServerConfig(
@@ -53,7 +54,7 @@ class McpRemoteToolAdapter(
             val result = session.callTool(definition.name, request.arguments)
             ToolResult(!result.isError, result.text.take(MAX_OUTPUT_CHARS),
                 if (result.isError) "MCP_REMOTE_ERROR" else null)
-        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             ToolResult(false, errorCode = "MCP_TRANSPORT_ERROR")

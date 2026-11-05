@@ -7,12 +7,15 @@ The objective is to add broad capability coverage, then verify each feature. A r
 - [x] Domain models for sessions, messages, agents, providers, memory, and tools
 - [x] Ports for provider, storage, permission, tool, and audit adapters
 - [x] Platform-independent coordinator boundary
-- [ ] CI build and unit-test verification
+- [x] CI build and unit-test verification
 
 ## Intelligence
 - [ ] Built-in Lara, JARVIS, FRIDAY, and EDITH profiles
-- [ ] Provider registry and capability-aware routing
-- [ ] Streaming, cancellation, timeouts, retries, and safe fallback
+- [x] Provider registry and capability-aware routing
+- [x] Deterministic provider fallback and cancellation propagation
+- [ ] Concrete cloud-provider HTTP adapters (OpenAI, Gemini, OpenRouter, Groq)
+- [ ] Provider health checks and configurable routing policies
+- [ ] Streaming, request timeouts, and retry/backoff policies
 - [ ] Context budgeting and summarization
 - [ ] Structured tool-call planning and validation
 

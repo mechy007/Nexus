@@ -301,7 +301,7 @@ private fun NexusHome() {
 
 @Composable
 private fun AlliumLive2D(modifier: Modifier = Modifier) {
-    val activity = androidx.compose.ui.platform.LocalContext.current as? Activity
+    val activity = androidx.compose.ui.platform.LocalContext.current as? MainActivity
     val glView = remember(activity) {
         requireNotNull(activity) { "Allium renderer requires an Activity context." }.let { host ->
             LAppDelegate.getInstance().onStart(host)

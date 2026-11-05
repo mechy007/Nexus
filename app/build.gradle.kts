@@ -24,6 +24,12 @@ android {
     buildFeatures {
         compose = true
     }
+
+    sourceSets.getByName("main") {
+        java.srcDir("../integration-staging/nexus_allium_integration/app/src/main/java")
+        assets.srcDir("../integration-staging/nexus_allium_integration/app/src/main/assets")
+        res.srcDir("../integration-staging/nexus_allium_integration/app/src/main/res")
+    }
 }
 
 kotlin {
@@ -32,7 +38,12 @@ kotlin {
     }
 }
 
+kotlin.sourceSets.getByName("main").kotlin.srcDir(
+    "../integration-staging/nexus_allium_integration/app/src/main/kotlin"
+)
+
 dependencies {
+    implementation(files("../integration-staging/nexus_allium_integration/app/libs/Live2DCubismCore.aar"))
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.11.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")

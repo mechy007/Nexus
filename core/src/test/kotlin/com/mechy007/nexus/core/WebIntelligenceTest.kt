@@ -1,8 +1,10 @@
 package com.mechy007.nexus.core
 
+import java.util.concurrent.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 class WebIntelligenceTest {
@@ -33,6 +35,15 @@ class WebIntelligenceTest {
         assertEquals(1, result.citations.size)
         assertEquals(1, result.pages.size)
         assertEquals(listOf("https://example.org/article"), fetcher.opened)
+    }
+
+    @Test fun webResearchPropagatesCancellation() = runBlocking {
+        val fetcher = object : WebPageFetcher {
+            override suspend fun fetch(url: String): WebPage = throw CancellationException("cancelled")
+        }
+        assertFailsWith<CancellationException> {
+            WebIntelligenceCoordinator(FakeSearch(), fetcher).research("AI research")
+        }
     }
 
     @Test fun localOnlyRequestDoesNotSendQueryToExternalSearch() = runBlocking {

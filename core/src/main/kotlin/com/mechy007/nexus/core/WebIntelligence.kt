@@ -1,5 +1,7 @@
 package com.mechy007.nexus.core
 
+import java.util.concurrent.CancellationException
+
 data class WebSearchRequest(val query: String, val limit: Int = 5) {
     init { require(query.isNotBlank() && limit in 1..20) }
 }
@@ -21,7 +23,7 @@ data class WebResearchResult(
     val citations: List<WebCitation>
 )
 
-/** Search, open and cite multiple sources without allowing page content to become agent instructions. */
+/** Search, open and cite sources; page content is evidence, never agent instructions. */
 class WebIntelligenceCoordinator(
     private val searchProvider: WebSearchProvider,
     private val pageFetcher: WebPageFetcher,
@@ -35,7 +37,13 @@ class WebIntelligenceCoordinator(
             runCatching { PublicWebUrlPolicy.validate(hit.url) }.isSuccess
         }
         val pages = safeHits.take(maxPagesToRead).mapNotNull { hit ->
-            runCatching { pageFetcher.fetch(hit.url) }.getOrNull()
+            try {
+                pageFetcher.fetch(hit.url)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
         }
         return WebResearchResult(
             query, response.provider, pages,

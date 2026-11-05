@@ -4,7 +4,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
-import kotlinx.coroutines.CancellationException
+import kotlin.coroutines.startCoroutine
+import java.util.concurrent.CancellationException
 
 class ProviderRoutingTest {
     private val agent = AgentProfile(AgentId("lara"), "Lara", "test", "test")

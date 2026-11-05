@@ -52,4 +52,4 @@ The objective is to add broad capability coverage, then verify each feature. A r
 - [ ] End-to-end tests on the target phone
 - [ ] APK packaging, signing, upgrade and data-preservation tests
 
-See [the OpenJarvis integration audit](OPENJARVIS_INTEGRATION.md) for upstream source selection and adaptation notes.
+See [the OpenJarvis integration audit](OPENJARVIS_INTEGRATION.md) and [the broader open-source integration audit](OPEN_SOURCE_INTEGRATION_AUDIT.md) for upstream source selection and adaptation notes.

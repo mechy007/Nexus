@@ -28,7 +28,6 @@ android {
     sourceSets.getByName("main") {
         java.srcDir("../integration-staging/nexus_allium_integration/app/src/main/java")
         assets.srcDir("../integration-staging/nexus_allium_integration/app/src/main/assets")
-        res.srcDir("../integration-staging/nexus_allium_integration/app/src/main/res")
     }
 }
 

@@ -63,7 +63,7 @@ class LiteRtLmProviderAdapter(
         return GenerationResponse(profile.id, text, model.id)
     }
 
-    override fun close() {
+    fun close() {
         if (closed.compareAndSet(false, true) && initialized.get()) engine.close()
     }
 

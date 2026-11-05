@@ -37,9 +37,6 @@ kotlin {
     }
 }
 
-kotlin.sourceSets.getByName("main").kotlin.srcDir(
-    "../integration-staging/nexus_allium_integration/app/src/main/kotlin"
-)
 
 dependencies {
     implementation(files("../integration-staging/nexus_allium_integration/app/libs/Live2DCubismCore.aar"))

@@ -100,7 +100,7 @@ class JsonFileMemoryStore(private val file: File) : ScopedMemoryStore {
                 }
             })
         }
-        val temp = File.createTempFile(file.name, ".tmp", parent)
+        val temp = File.createTempFile(file.name.padEnd(3, '_'), ".tmp", parent)
         try {
             temp.writeText(root.toString(), Charsets.UTF_8)
             try {

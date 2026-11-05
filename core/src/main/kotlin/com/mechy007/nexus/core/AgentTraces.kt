@@ -50,12 +50,24 @@ interface TraceStore {
 
 /** Development/test implementation only; data is lost when the process exits. */
 class InMemoryTraceStore : TraceStore {
+    private val lock = Any()
     private val traces = linkedMapOf<String, AgentTrace>()
-    @Synchronized override suspend fun save(trace: AgentTrace) { traces[trace.id] = trace }
-    @Synchronized override suspend fun find(id: String): AgentTrace? = traces[id]
-    @Synchronized override suspend fun recent(limit: Int): List<AgentTrace> {
-        require(limit >= 0)
-        return traces.values.sortedByDescending { it.startedAt }.take(limit)
+
+    override suspend fun save(trace: AgentTrace) {
+        synchronized(lock) { traces[trace.id] = trace }
     }
-    @Synchronized override suspend fun delete(id: String) { traces.remove(id) }
+
+    override suspend fun find(id: String): AgentTrace? =
+        synchronized(lock) { traces[id] }
+
+    override suspend fun recent(limit: Int): List<AgentTrace> {
+        require(limit >= 0)
+        return synchronized(lock) {
+            traces.values.sortedByDescending { it.startedAt }.take(limit)
+        }
+    }
+
+    override suspend fun delete(id: String) {
+        synchronized(lock) { traces.remove(id) }
+    }
 }

@@ -14,8 +14,10 @@
 5. Execute bounded planner, solver, critic and synthesizer roles.
 6. Evaluate the response structurally and return contributions and evidence references.
 
+The opt-in `NexusCoordinator.respondWithIntelligence` path persists the user and assistant messages and can persist the resulting trace through the existing `TraceStore`. The legacy `respond` path remains available. Tool execution and permission checks remain owned by `AgentRuntime`.
+
 ## Multi-model reasoning
-Simple requests use one model. Moderate and harder requests may use a solver and independent critic. Complex requests may add a planner and synthesizer. Provider IDs already used in a task are excluded where possible. Calls and output sizes are bounded. If a second model is unavailable, NEXUS falls back to the best available result and reports that independent review was unavailable.
+Simple requests use one model. Moderate and harder requests may use a solver and independent critic. Complex requests may add a planner and synthesizer. Provider IDs already used in a task are excluded where possible. Calls and output sizes are bounded. If only one eligible model exists, complex tasks safely fall back to that model. If a second model is unavailable, NEXUS reports that independent review was unavailable.
 
 The current core implements sequential role collaboration. Parallel specialist fan-out is a later optimization; it must preserve distinct-provider selection, cancellation, budget limits and deterministic synthesis.
 

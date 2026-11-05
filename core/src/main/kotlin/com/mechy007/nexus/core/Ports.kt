@@ -50,6 +50,23 @@ interface MemoryStore {
     suspend fun exportAll(): List<MemoryRecord>
 }
 
+data class MemorySearchOptions(
+    val query: String,
+    val limit: Int = 10,
+    val scopes: Set<MemoryScope> = MemoryScope.entries.toSet(),
+    val scopeId: String? = null,
+    val includeExpired: Boolean = false
+) {
+    init {
+        require(limit >= 0) { "Memory search limit cannot be negative." }
+        require(scopeId == null || scopeId.isNotBlank()) { "scopeId cannot be blank." }
+    }
+}
+
+interface ScopedMemoryStore : MemoryStore {
+    suspend fun search(options: MemorySearchOptions): List<MemoryRecord>
+}
+
 enum class GrantDecision { GRANTED, DENIED, REQUIRES_USER_ACTION }
 
 interface PermissionManager {

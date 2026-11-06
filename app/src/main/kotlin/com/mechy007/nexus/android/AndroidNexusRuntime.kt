@@ -24,7 +24,15 @@ data class AndroidProviderSettings(
     val displayName: String,
     val baseUrl: String,
     val model: String
-)
+) {
+    init {
+        require(providerId.isNotBlank() && displayName.isNotBlank() && model.isNotBlank())
+        val uri = URI.create(baseUrl)
+        require(uri.scheme == "https" && uri.host != null && uri.userInfo == null && uri.query == null && uri.fragment == null) {
+            "Provider URL must be a valid HTTPS base URL."
+        }
+    }
+}
 
 /** Stores provider credentials encrypted with a non-exportable Android Keystore AES key. */
 class AndroidProviderSecretStore(context: Context) : ProviderSecretResolver {
@@ -249,11 +257,13 @@ object AndroidNexusRuntime {
 
     suspend fun respond(message: String): String {
         val active = requireNotNull(coordinator) { "Configure an AI provider in Settings first." }
-        return active.respond(
-            sessionId = SessionId("nexus-primary-conversation"),
-            agentId = AgentId("allium"),
-            userText = message
-        ).text
+        return withContext(Dispatchers.IO) {
+            active.respond(
+                sessionId = SessionId("nexus-primary-conversation"),
+                agentId = AgentId("allium"),
+                userText = message
+            ).text
+        }
     }
 
     fun disconnect(context: Context) {

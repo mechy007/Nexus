@@ -119,12 +119,19 @@ class McpConnectionManager(
 ) : AutoCloseable {
     private data class Active(val session: McpClientSession, val toolIds: Set<ToolId>)
     private val active = ConcurrentHashMap<String, Active>()
+    // Reserve the server ID before any suspending connector work. This prevents two
+    // concurrent connect calls from registering the same remote tool IDs.
+    private val connecting = ConcurrentHashMap.newKeySet<String>()
 
     suspend fun connect(config: McpServerConfig): List<ToolId> {
         require(config.enabled) { "MCP server is disabled." }
-        require(!active.containsKey(config.id)) { "MCP server is already connected." }
-        val session = connector.connect(config)
+        require(connecting.add(config.id)) { "MCP server is already connected or connecting." }
+
+        var session: McpClientSession? = null
+        val registeredToolIds = linkedSetOf<ToolId>()
         try {
+            require(!active.containsKey(config.id)) { "MCP server is already connected." }
+            session = connector.connect(config)
             val listed = session.listTools()
             require(listed.size <= MAX_TOOLS_PER_SERVER) { "MCP server exposed too many tools." }
             val definitions = listed.filter {
@@ -133,16 +140,25 @@ class McpConnectionManager(
             val adapters = definitions.map { McpRemoteToolAdapter(config.id, it, session) }
             adapters.forEach { adapter ->
                 registry.register(ToolRegistration(adapter, config.requiredCapabilities, SkillTrustTier.UNREVIEWED))
+                registeredToolIds += adapter.id
             }
-            val connected = Active(session, adapters.map { it.id }.toSet())
-            if (active.putIfAbsent(config.id, connected) != null) {
-                adapters.forEach { registry.remove(it.id) }
-                error("MCP server is already connected.")
+
+            val connected = Active(session, registeredToolIds.toSet())
+            check(active.putIfAbsent(config.id, connected) == null) {
+                "MCP server is already connected."
             }
             return connected.toolIds.toList()
-        } catch (error: Exception) {
-            session.close()
-            throw error
+        } catch (failure: Throwable) {
+            // A failed/cancelled connection must not leave callable tools behind.
+            registeredToolIds.forEach(registry::remove)
+            try {
+                session?.close()
+            } catch (closeFailure: Throwable) {
+                failure.addSuppressed(closeFailure)
+            }
+            throw failure
+        } finally {
+            connecting.remove(config.id)
         }
     }
     fun disconnect(serverId: String): Boolean {

@@ -13,7 +13,7 @@ NEXUS exposes a narrow set of foreground Android actions through its host bridge
 3. Android's permission manager always returns REQUIRES_USER_ACTION for these tools.
 4. NEXUS displays the exact action and its relevant payload in a confirmation dialog.
 5. Approval executes only the matching in-memory request once. It expires after five minutes, is discarded on process death, and cannot be reused.
-6. Rejection discards the request without invoking the Android bridge. The action outcome is recorded in an app-private audit log without storing payload text.
+6. Rejection discards the request without invoking the Android bridge. The action outcome is recorded in an bounded app-private audit log without storing payload text.
 
 The approval is request-specific: it does not create a standing permission or grant future actions. The runtime rechecks that the tool registration is unchanged before execution.
 
@@ -26,7 +26,7 @@ The approval is request-specific: it does not create a standing permission or gr
 - Links must use HTTP or HTTPS, include a host, contain no embedded credentials, and stay within the length limit.
 - Blank or oversized share payloads are rejected.
 - A chooser being launched is not proof that a message was sent or a task completed.
-- The action audit records metadata and outcomes only; it does not record action arguments or shared text.
+- The action audit keeps a bounded history of metadata and outcomes only; it does not record action arguments or shared text.
 
 ## Current limitations
 

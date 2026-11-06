@@ -292,7 +292,7 @@ private fun NexusTopBar(connected: Boolean, onStatusClick: () -> Unit) {
                 Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(7.dp).background(if (connected) Color(0xFF54C78A) else Color(0xFFE0A64B), CircleShape))
                     Spacer(Modifier.width(7.dp))
-                    Text(if (connected) "AI READY" else "AI OFFLINE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
+                    Text(if (connected) "AI SET" else "AI OFFLINE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
                 }
             }
         }
@@ -455,7 +455,7 @@ private fun ChatScreen(
                     AlliumVoiceController.Status.INITIALIZING -> "Preparing voice services…"
                     AlliumVoiceController.Status.UNAVAILABLE -> "Voice services are unavailable."
                     AlliumVoiceController.Status.ERROR -> "Voice service needs attention."
-                    AlliumVoiceController.Status.IDLE -> if (providerConnected) "Connected to ${AndroidNexusRuntime.currentSettings()?.displayName ?: "your AI provider"}." else "Connect an AI provider in Settings to enable replies."
+                    AlliumVoiceController.Status.IDLE -> if (providerConnected) "${AndroidNexusRuntime.currentSettings()?.displayName ?: "AI provider"} configured · first request verifies access." else "Connect an AI provider in Settings to enable replies."
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp

@@ -1,5 +1,6 @@
 package com.mechy007.nexus.core
 
+import java.time.Instant
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
@@ -48,16 +49,25 @@ data class ProviderDiscoveryReport(
 class ProviderDiscoveryService(
     private val registry: ProviderRegistry,
     private val timeoutMillis: Long = 5_000,
-    private val nowNanos: () -> Long = System::nanoTime
+    private val nowNanos: () -> Long = System::nanoTime,
+    private val snapshotStore: ProviderDiscoveryStore? = null,
+    private val now: () -> Instant = Instant::now
 ) {
     init { require(timeoutMillis > 0) }
 
-    suspend fun discover(): ProviderDiscoveryReport = supervisorScope {
-        val entries = registry.all().map { adapter ->
-            async { inspect(adapter) }
-        }.map { it.await() }
-        ProviderDiscoveryReport(entries.sortedBy { it.providerId.value })
+    suspend fun discover(): ProviderDiscoveryReport {
+        val report = supervisorScope {
+            val entries = registry.all().map { adapter ->
+                async { inspect(adapter) }
+            }.map { it.await() }
+            ProviderDiscoveryReport(entries.sortedBy { it.providerId.value })
+        }
+        snapshotStore?.save(ProviderDiscoverySnapshot(now(), report))
+        return report
     }
+
+    /** Returns the last saved result; callers must treat it as historical, not live health. */
+    suspend fun lastKnownSnapshot(): ProviderDiscoverySnapshot? = snapshotStore?.load()
 
     private suspend fun inspect(adapter: ProviderAdapter): ProviderDiscoveryEntry {
         val id = adapter.profile.id

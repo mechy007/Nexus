@@ -1,12 +1,12 @@
 package com.mechy007.nexus.core
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.startCoroutine
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ProviderDiscoveryTest {
@@ -48,7 +48,7 @@ class ProviderDiscoveryTest {
     }
 
     @Test
-    fun timeoutIsReportedWithoutFailingTheWholeDiscoveryPass() = runSuspend {
+    fun timeoutIsReportedWithoutFailingTheWholeDiscoveryPass() = runBlocking {
         val registry = InMemoryProviderRegistry().apply {
             register(FakeProvider("slow", enabled = true, waitMillis = 100))
             register(FakeProvider("fast", enabled = true, result = true))

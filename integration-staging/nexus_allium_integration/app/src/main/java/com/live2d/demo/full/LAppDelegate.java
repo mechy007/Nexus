@@ -100,6 +100,9 @@ public class LAppDelegate {
     }
 
     public void onSurfaceChanged(int width, int height) {
+        if (width <= 0 || height <= 0 || view == null) {
+            return;
+        }
         // 描画範囲指定
         GLES20.glViewport(0, 0, width, height);
         windowWidth = width;
@@ -126,7 +129,7 @@ public class LAppDelegate {
         }
 
         // アプリケーションを非アクティブにする
-        if (!isActive) {
+        if (!isActive && activity != null) {
             activity.finishAndRemoveTask();
         }
     }

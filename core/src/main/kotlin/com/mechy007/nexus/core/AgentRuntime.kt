@@ -117,8 +117,9 @@ class AgentRuntime(
             pending.agent.id.value, "tool.execute", pending.request.toolId.value,
             if (result.success) "approved_success" else "approved_failure"
         ))
-        val updated = pending.session.copy(
-            messages = pending.session.messages + NexusMessage(
+        val currentSession = sessions.get(pending.request.sessionId) ?: pending.session
+        val updated = currentSession.copy(
+            messages = currentSession.messages + NexusMessage(
                 role = MessageRole.TOOL,
                 content = if (result.success) result.output else "Tool failed: " + (result.errorCode ?: "UNKNOWN"),
                 metadata = mapOf("toolId" to pending.request.toolId.value, "requestId" to pending.request.id)

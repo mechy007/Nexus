@@ -197,6 +197,32 @@ object AndroidNexusRuntime {
     private var registry: InMemoryProviderRegistry? = null
     private var coordinator: NexusCoordinator? = null
     private var settings: AndroidProviderSettings? = null
+    private var agentRuntime: AgentRuntime? = null
+
+    private fun createAgentRuntime(context: Context, providers: ProviderRegistry): AgentRuntime {
+        val bridge = AndroidDeviceActionBridge(context)
+        val tools = ToolRegistry().apply {
+            register(ToolRegistration(AndroidLaunchAppTool(bridge), setOf("android:launch_app")))
+            register(ToolRegistration(AndroidOpenWebLinkTool(bridge), setOf("android:open_url")))
+            register(ToolRegistration(AndroidShareTextTool(bridge), setOf("android:share_text")))
+        }
+        val router = CapabilityAwareProviderRouter(providers)
+        return AgentRuntime(
+            agents = agents,
+            decisionEngine = StructuredJsonDecisionEngine(router, tools),
+            sessions = JsonFileSessionStore(context.getDir("nexus_sessions", Context.MODE_PRIVATE)),
+            tools = tools,
+            permissions = AndroidExplicitApprovalPermissionManager,
+            audit = AndroidActionAuditSink(context),
+            traces = InMemoryTraceStore()
+        )
+    }
+
+    data class Turn(
+        val reply: String? = null,
+        val pendingTool: ToolRequest? = null,
+        val failure: String? = null
+    )
 
     @Synchronized
     fun configure(context: Context, providerSettings: AndroidProviderSettings, apiKey: String) {
@@ -218,6 +244,7 @@ object AndroidNexusRuntime {
             router = CapabilityAwareProviderRouter(providers),
             sessions = JsonFileSessionStore(app.getDir("nexus_sessions", Context.MODE_PRIVATE))
         )
+        agentRuntime = createAgentRuntime(app, providers)
         preferences.edit()
             .putString("provider_id", providerSettings.providerId)
             .putString("display_name", providerSettings.displayName)
@@ -248,6 +275,7 @@ object AndroidNexusRuntime {
             router = CapabilityAwareProviderRouter(providers),
             sessions = JsonFileSessionStore(app.getDir("nexus_sessions", Context.MODE_PRIVATE))
         )
+        agentRuntime = createAgentRuntime(app, providers)
         preferences.edit()
             .putString("provider_id", providerSettings.providerId)
             .putString("display_name", providerSettings.displayName)
@@ -280,12 +308,35 @@ object AndroidNexusRuntime {
             router = CapabilityAwareProviderRouter(providers),
             sessions = JsonFileSessionStore(app.getDir("nexus_sessions", Context.MODE_PRIVATE))
         )
+        agentRuntime = createAgentRuntime(app, providers)
         return true
     }
 
     fun isConfigured(context: Context): Boolean = restore(context)
 
     fun currentSettings(): AndroidProviderSettings? = settings
+
+    suspend fun respondTurn(message: String): Turn {
+        val active = requireNotNull(agentRuntime) { "Configure an AI provider in Settings first." }
+        return withContext(Dispatchers.IO) {
+            val result = active.run(SessionId("nexus-primary-conversation"), AgentId("allium"), message)
+            when (result.status) {
+                AgentTurnStatus.COMPLETED -> Turn(reply = result.reply)
+                AgentTurnStatus.AWAITING_APPROVAL -> Turn(pendingTool = result.pendingTool)
+                AgentTurnStatus.FAILED -> Turn(failure = result.failureReason ?: "NEXUS could not complete the request.")
+            }
+        }
+    }
+
+    suspend fun approvePending(requestId: String): ToolApprovalResult {
+        val active = requireNotNull(agentRuntime) { "NEXUS agent runtime is not configured." }
+        return withContext(Dispatchers.IO) { active.approvePending(requestId) }
+    }
+
+    suspend fun rejectPending(requestId: String): Boolean {
+        val active = requireNotNull(agentRuntime) { "NEXUS agent runtime is not configured." }
+        return withContext(Dispatchers.IO) { active.rejectPending(requestId) }
+    }
 
     suspend fun respond(message: String): String {
         val active = requireNotNull(coordinator) { "Configure an AI provider in Settings first." }
@@ -307,6 +358,7 @@ object AndroidNexusRuntime {
             coordinator = null
             registry = null
             settings = null
+            agentRuntime = null
         }
     }
 }

@@ -25,7 +25,11 @@ class HybridMemoryStore(
 
     override suspend fun search(options: MemorySearchOptions): List<MemoryRecord> {
         if (options.limit == 0 || options.query.isBlank()) return emptyList()
-        val candidateLimit = (options.limit * candidateMultiplier).coerceIn(options.limit, maxCandidates)
+        val expandedLimit = options.limit.toLong() * candidateMultiplier
+        val candidateLimit = minOf(maxCandidates.toLong(), expandedLimit)
+            .coerceAtLeast(options.limit.toLong())
+            .coerceAtMost(Int.MAX_VALUE.toLong())
+            .toInt()
         val lexical = if (records is ScopedMemoryStore) {
             records.search(options.copy(limit = candidateLimit))
         } else {

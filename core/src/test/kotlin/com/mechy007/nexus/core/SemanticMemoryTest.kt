@@ -37,6 +37,34 @@ class SemanticMemoryTest {
         assertEquals(listOf("dog"), scoped.map { it.record.id })
     }
 
+    @Test fun semanticSearchBoundsVectorCandidates() = runSuspend {
+        class RecordingIndex : VectorIndex {
+            var requestedLimit: Int? = null
+            override suspend fun upsert(id: String, vector: FloatArray) = Unit
+            override suspend fun search(vector: FloatArray, limit: Int): List<VectorMatch> {
+                requestedLimit = limit
+                return emptyList()
+            }
+            override suspend fun delete(id: String) = Unit
+            override suspend fun clear() = Unit
+        }
+        val index = RecordingIndex()
+        val service = SemanticMemoryService(MemoryFake(), Embeddings(), index, candidateMultiplier = 4, maxCandidates = 25)
+        assertTrue(service.search(MemorySearchOptions("kitten", limit = 3)).isEmpty())
+        assertEquals(12, index.requestedLimit)
+        service.search(MemorySearchOptions("kitten", limit = 20))
+        assertEquals(25, index.requestedLimit)
+    }
+
+    @Test fun semanticSearchSkipsEmbeddingForBlankOrNonPositiveLimit() = runSuspend {
+        var embeddingCalls = 0
+        val embeddings = EmbeddingProvider { embeddingCalls++; floatArrayOf(1f, 0f) }
+        val service = SemanticMemoryService(MemoryFake(), embeddings, JsonFileVectorIndex(tempDir.resolve("empty-vectors.json").toFile()))
+        assertTrue(service.search(MemorySearchOptions(" ", limit = 5)).isEmpty())
+        assertTrue(service.search(MemorySearchOptions("cat", limit = 0)).isEmpty())
+        assertEquals(0, embeddingCalls)
+    }
+
     @Test fun vectorIndexSurvivesRestartAndDeletes() = runSuspend {
         val file = tempDir.resolve("persistent-vectors.json").toFile()
         val index = JsonFileVectorIndex(file)

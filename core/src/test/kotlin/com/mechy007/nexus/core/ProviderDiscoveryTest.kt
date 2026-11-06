@@ -2,16 +2,13 @@ package com.mechy007.nexus.core
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import kotlin.coroutines.Continuation
-import kotlin.coroutines.EmptyCoroutineContext
-import kotlin.coroutines.startCoroutine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ProviderDiscoveryTest {
     @Test
-    fun discoversHealthyUnhealthyDisabledAndUnsupportedProvidersIndependently() = runSuspend {
+    fun discoversHealthyUnhealthyDisabledAndUnsupportedProvidersIndependently() = runBlocking {
         val registry = InMemoryProviderRegistry().apply {
             register(FakeProvider("healthy", enabled = true, result = true))
             register(FakeProvider("unhealthy", enabled = true, result = false))
@@ -35,7 +32,7 @@ class ProviderDiscoveryTest {
     }
 
     @Test
-    fun probeExceptionsBecomeSanitizedFailureCategories() = runSuspend {
+    fun probeExceptionsBecomeSanitizedFailureCategories() = runBlocking {
         val registry = InMemoryProviderRegistry().apply {
             register(FakeProvider("broken", enabled = true, error = IllegalStateException("secret response body")))
         }
@@ -82,12 +79,4 @@ class ProviderDiscoveryTest {
         override suspend fun generate(request: GenerationRequest) = GenerationResponse(profile.id, "ok")
     }
 
-    private fun <T> runSuspend(block: suspend () -> T): T {
-        var result: Result<T>? = null
-        block.startCoroutine(object : Continuation<T> {
-            override val context = EmptyCoroutineContext
-            override fun resumeWith(value: Result<T>) { result = value }
-        })
-        return requireNotNull(result) { "Expected test coroutine to complete synchronously." }.getOrThrow()
-    }
 }

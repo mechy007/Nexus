@@ -34,6 +34,16 @@ public class LAppLive2DManager {
         return s_instance;
     }
 
+    public static boolean hasInstance() {
+        return s_instance != null;
+    }
+
+    public void reloadRenderers() {
+        for (LAppModel model : models) {
+            if (model != null && model.getModel() != null) model.reloadRenderer();
+        }
+    }
+
     public static void releaseInstance() {
         if (s_instance != null) {
             s_instance.releaseAllModel();
@@ -63,8 +73,13 @@ public class LAppLive2DManager {
         final AssetManager assets = LAppDelegate.getInstance().getActivity().getResources().getAssets();
         try {
             String[] root = assets.list("");
+            if (root == null) {
+                LAppPal.printLog("No assets were found while searching for Live2D models.");
+                return;
+            }
             for (String subdir: root) {
                 String[] files = assets.list(subdir);
+                if (files == null || files.length == 0) continue;
                 String target = subdir + ".model3.json";
                 // フォルダと同名の.model3.jsonがあるか探索する
                 for (String file : files) {
@@ -84,6 +99,7 @@ public class LAppLive2DManager {
     public void onUpdate() {
         int width = LAppDelegate.getInstance().getWindowWidth();
         int height = LAppDelegate.getInstance().getWindowHeight();
+        if (width <= 0 || height <= 0 || models.isEmpty()) return;
         float aspectRatio = (float) width / (float) height;
         float displayRatio = (float) height / (float) width;
 
@@ -93,14 +109,19 @@ public class LAppLive2DManager {
         for (int i = 0; i < models.size(); i++) {
             LAppModel model = models.get(i);
 
-            if (model.getModel() == null) {
+            if (model == null || model.getModel() == null) {
                 LAppPal.printLog("Failed to model.getModel().");
                 continue;
             }
 
             projection.loadIdentity();
-
-            float canvasRatio = model.getModel().getCanvasHeight() / model.getModel().getCanvasWidth();
+            float canvasWidth = model.getModel().getCanvasWidth();
+            float canvasHeight = model.getModel().getCanvasHeight();
+            if (canvasWidth <= 0.0f || canvasHeight <= 0.0f) {
+                LAppPal.printLog("Skipping Live2D model with invalid canvas dimensions.");
+                continue;
+            }
+            float canvasRatio = canvasHeight / canvasWidth;
 
             if (canvasRatio < displayRatio) {
                 // 横長モデルを幅に合わせて縦方向のスケールを調整
@@ -143,7 +164,7 @@ public class LAppLive2DManager {
     public void onDrag(float x, float y) {
         for (int i = 0; i < models.size(); i++) {
             LAppModel model = getModel(i);
-            model.setDragging(x, y);
+            if (model != null) model.setDragging(x, y);
         }
     }
 
@@ -156,6 +177,7 @@ public class LAppLive2DManager {
     public void onTap(float x, float y) {
         int width = LAppDelegate.getInstance().getWindowWidth();
         int height = LAppDelegate.getInstance().getWindowHeight();
+        if (width <= 0 || height <= 0) return;
         float aspectRatio = (float) width / (float) height;
         float displayRatio = (float) height / (float) width;
 
@@ -165,7 +187,11 @@ public class LAppLive2DManager {
 
         for (int i = 0; i < models.size(); i++) {
             LAppModel model = models.get(i);
-            float canvasRatio = model.getModel().getCanvasHeight() / model.getModel().getCanvasWidth();
+            if (model == null || model.getModel() == null) continue;
+            float canvasWidth = model.getModel().getCanvasWidth();
+            float canvasHeight = model.getModel().getCanvasHeight();
+            if (canvasWidth <= 0.0f || canvasHeight <= 0.0f) continue;
+            float canvasRatio = canvasHeight / canvasWidth;
 
             float adjustedX = x;
             float adjustedY = y;
@@ -199,6 +225,10 @@ public class LAppLive2DManager {
      * サンプルアプリケーションではモデルセットの切り替えを行う
      */
     public void nextScene() {
+        if (modelDir.isEmpty()) {
+            LAppPal.printLog("Cannot change Live2D scene: no valid model folders were found.");
+            return;
+        }
         final int number = (LAppDelegate.getInstance().getSceneIndex() + 1) % modelDir.size();
 
         changeScene(number);
@@ -210,6 +240,15 @@ public class LAppLive2DManager {
      * @param index 切り替えるシーンインデックス
      */
     public void changeScene(int index) {
+        if (modelDir.isEmpty()) {
+            LAppPal.printLog("Cannot load Live2D model: no valid model folders were found under assets.");
+            releaseAllModel();
+            return;
+        }
+        if (index < 0 || index >= modelDir.size()) {
+            LAppPal.printLog("Ignoring invalid Live2D scene index: " + index);
+            return;
+        }
         LAppDelegate.getInstance().setSceneIndex(index);
         if (DEBUG_LOG_ENABLE) {
             LAppPal.printLog("model index: " + index);
@@ -264,7 +303,7 @@ public class LAppLive2DManager {
      * @return モデルのインスタンスを返す。インデックス値が範囲外の場合はnullを返す
      */
     public LAppModel getModel(int number) {
-        if (number < models.size()) {
+        if (number >= 0 && number < models.size()) {
             return models.get(number);
         }
         return null;
@@ -291,8 +330,7 @@ public class LAppLive2DManager {
     public void setRenderTargetSize(int width, int height) {
         for (int i = 0; i < models.size(); i++) {
             LAppModel model = models.get(i);
-
-            model.setRenderTargetSize(width, height);
+            if (model != null) model.setRenderTargetSize(width, height);
         }
     }
 
@@ -327,7 +365,11 @@ public class LAppLive2DManager {
 
     private LAppLive2DManager() {
         setUpModel();
-        changeScene(LAppDelegate.getInstance().getSceneIndex());
+        if (!modelDir.isEmpty()) {
+            changeScene(LAppDelegate.getInstance().getSceneIndex());
+        } else {
+            LAppPal.printLog("Live2D manager started without a model; the host app will remain available.");
+        }
     }
 
     private final List<LAppModel> models = new ArrayList<>();

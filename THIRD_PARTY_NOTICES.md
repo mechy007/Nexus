@@ -41,3 +41,13 @@ The following projects were reviewed as architectural and testing references for
 - [AgentDojo](https://github.com/ethz-spylab/agentdojo) — MIT. Reviewed as a source of adversarial tool-use test scenarios. No source code copied.
 
 See `docs/OPEN_SOURCE_INTEGRATION_AUDIT.md` for the selected upstream files, adaptation boundaries, and future candidates.
+
+
+## Live2D Cubism and Allium
+
+NEXUS includes the Live2D Cubism Java Framework, the Cubism Core Android runtime, and the Allium model in the Android integration bundle under `integration-staging/nexus_allium_integration/`.
+
+- Cubism Java Framework and sample renderer sources are governed by the Live2D Open Software License; Cubism Core is governed by the Live2D Proprietary Software License. Review the included license documents and current Live2D agreements before distributing builds.
+- Allium model artist credit: **早坂幽里**. The model was supplied as free material. The included `Allium-Model-Terms.txt` prohibits resale and R18 derivatives, requires artist attribution, and prohibits targeted defamation or abusive/violent misuse.
+- NEXUS does not claim ownership of the model or Live2D runtime. The bundle does not grant additional redistribution or publication rights.
+- Model and SDK notices: `integration-staging/nexus_allium_integration/licenses/`.

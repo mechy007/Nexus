@@ -1,5 +1,6 @@
 package com.mechy007.nexus.android
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -42,22 +44,25 @@ private val providerPresets = listOf(
 
 @Composable
 fun AIProviderSettings(onConnectionChanged: (Boolean) -> Unit) {
-    var selected by rememberSaveable { mutableStateOf(providerPresets.first()) }
-    var model by rememberSaveable { mutableStateOf(selected.model) }
-    var baseUrl by rememberSaveable { mutableStateOf(selected.baseUrl) }
+    val context = LocalContext.current
+    var selectedId by rememberSaveable { mutableStateOf("openai") }
+    var model by rememberSaveable { mutableStateOf("gpt-4o-mini") }
+    var baseUrl by rememberSaveable { mutableStateOf("https://api.openai.com/v1") }
     var apiKey by rememberSaveable { mutableStateOf("") }
     var configured by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("Choose a provider and add its API key.") }
 
-    LaunchedEffect(Unit) {
-        configured = AndroidNexusRuntime.isConfigured(androidx.compose.ui.platform.LocalContext.current)
+    LaunchedEffect(context) {
+        configured = AndroidNexusRuntime.isConfigured(context)
         onConnectionChanged(configured)
         AndroidNexusRuntime.currentSettings()?.let { saved ->
-            providerPresets.firstOrNull { it.id == saved.providerId }?.let { selected = it }
+            selectedId = saved.providerId
             model = saved.model
             baseUrl = saved.baseUrl
         }
     }
+
+    val selected = providerPresets.firstOrNull { it.id == selectedId } ?: providerPresets.first()
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -76,9 +81,9 @@ fun AIProviderSettings(onConnectionChanged: (Boolean) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 providerPresets.forEach { preset ->
                     FilterChip(
-                        selected = selected.id == preset.id,
+                        selected = selectedId == preset.id,
                         onClick = {
-                            selected = preset
+                            selectedId = preset.id
                             baseUrl = preset.baseUrl
                             model = preset.model
                         },
@@ -104,7 +109,7 @@ fun AIProviderSettings(onConnectionChanged: (Boolean) -> Unit) {
                 value = apiKey,
                 onValueChange = { apiKey = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(if (configured) "New API key (leave blank to keep saved key)" else "API key") },
+                label = { Text(if (configured) "New API key (optional)" else "API key") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
@@ -113,7 +118,6 @@ fun AIProviderSettings(onConnectionChanged: (Boolean) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 Button(
                     onClick = {
-                        val existing = AndroidNexusRuntime.currentSettings()
                         val key = apiKey.trim()
                         if (model.isBlank() || baseUrl.isBlank() || (!configured && key.isBlank())) {
                             message = "Enter a model, API URL and API key."
@@ -128,14 +132,9 @@ fun AIProviderSettings(onConnectionChanged: (Boolean) -> Unit) {
                                     model.trim()
                                 )
                                 if (key.isNotBlank()) {
-                                    AndroidNexusRuntime.configure(
-                                        NexusSettingsContext.current,
-                                        providerSettings,
-                                        key
-                                    )
+                                    AndroidNexusRuntime.configure(context, providerSettings, key)
                                 } else {
-                                    requireNotNull(existing) { "Enter the API key to connect." }
-                                    AndroidNexusRuntime.configureWithSavedKey(NexusSettingsContext.current, providerSettings)
+                                    AndroidNexusRuntime.configureWithSavedKey(context, providerSettings)
                                 }
                             }.onSuccess {
                                 configured = true
@@ -151,7 +150,7 @@ fun AIProviderSettings(onConnectionChanged: (Boolean) -> Unit) {
                 ) { Text(if (configured) "Save settings" else "Connect") }
                 if (configured) {
                     Button(onClick = {
-                        AndroidNexusRuntime.disconnect(NexusSettingsContext.current)
+                        AndroidNexusRuntime.disconnect(context)
                         configured = false
                         message = "Provider disconnected and saved key deleted."
                         onConnectionChanged(false)
@@ -160,9 +159,4 @@ fun AIProviderSettings(onConnectionChanged: (Boolean) -> Unit) {
             }
         }
     }
-}
-
-/** Set by the parent Settings screen so this composable does not retain an Activity. */
-private object NexusSettingsContext {
-    lateinit var current: android.content.Context
 }

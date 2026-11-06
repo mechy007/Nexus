@@ -159,6 +159,29 @@ class AgentRuntimeIntegrationTest {
         assertNull(reopened.get(session.id))
     }
 
+    @Test fun traceStoreRetentionKeepsNewestRecords() = runSuspend {
+        val file = tempDir.resolve("bounded-traces.json").toFile()
+        val store = JsonFileTraceStore(file, maxRecords = 2)
+        val first = AgentTrace(
+            id = "trace-1", sessionId = SessionId("s"), agentId = AgentId("lara"),
+            startedAt = java.time.Instant.parse("2026-01-01T00:00:00Z")
+        )
+        val second = AgentTrace(
+            id = "trace-2", sessionId = SessionId("s"), agentId = AgentId("lara"),
+            startedAt = java.time.Instant.parse("2026-01-02T00:00:00Z")
+        )
+        val third = AgentTrace(
+            id = "trace-3", sessionId = SessionId("s"), agentId = AgentId("lara"),
+            startedAt = java.time.Instant.parse("2026-01-03T00:00:00Z")
+        )
+        store.save(first)
+        store.save(second)
+        store.save(third)
+        assertNull(store.find(first.id))
+        assertEquals(listOf(third, second), store.recent())
+        assertEquals(2, store.recent(limit = 10).size)
+    }
+
     @Test fun traceStoreSurvivesRestartAndDeletes() = runSuspend {
         val file = tempDir.resolve("traces.json").toFile()
         val trace = AgentTrace(sessionId = SessionId("s"), agentId = AgentId("lara"),

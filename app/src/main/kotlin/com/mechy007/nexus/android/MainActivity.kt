@@ -364,7 +364,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
 private fun describePendingAction(request: ToolRequest): String {
     val args = request.arguments
     return when (request.toolId.value) {
-        "android.launch_app" -> "Open installed app\nPackage: " + args["packageName"].orEmpty()
+        "android.launch_app" -> "Open installed app: " + args["appName"].orEmpty()
         "android.open_url" -> "Open this link with Android's app chooser:\n" + args["url"].orEmpty()
         "android.share_text" -> "Open Android Sharesheet with this text:\n" + args["text"].orEmpty().take(1200)
         else -> "Tool: " + request.toolId.value + "\nArguments: " + args.entries.joinToString { it.key + "=" + it.value.take(300) }

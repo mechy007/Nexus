@@ -34,6 +34,18 @@ public class LAppLive2DManager {
         return s_instance;
     }
 
+    public static boolean hasInstance() {
+        return s_instance != null;
+    }
+
+    public void reloadRenderers() {
+        for (LAppModel model : models) {
+            if (model != null && model.getModel() != null) {
+                model.reloadRenderer();
+            }
+        }
+    }
+
     public static void releaseInstance() {
         if (s_instance != null) {
             s_instance.releaseAllModel();

@@ -10,18 +10,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,17 +29,25 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -74,7 +78,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { NexusTheme { NexusHome() } }
+        setContent {
+            var darkTheme by rememberSaveable { mutableStateOf(true) }
+            NexusTheme(darkTheme = darkTheme) {
+                NexusApp(darkTheme = darkTheme, onThemeChange = { darkTheme = it })
+            }
+        }
     }
 
     override fun onResume() {
@@ -96,55 +105,83 @@ class MainActivity : ComponentActivity() {
 }
 
 private data class ChatLine(val id: Int, val text: String, val fromUser: Boolean)
-private enum class AvatarMode { ALLIUM, ORB }
 
-private val Ink = Color(0xFF090A12)
-private val Panel = Color(0xFF141522)
-private val Violet = Color(0xFFBDA7FF)
-private val Muted = Color(0xFF9292A8)
-private val TextPrimary = Color(0xFFF4F0FF)
+private enum class NexusPage(val label: String, val symbol: String) {
+    HOME("Home", "⌂"),
+    CHAT("Chat", "▤"),
+    BROWSER("Browser", "◎"),
+    MIND_SPACE("Mind Space", "✧"),
+    SETTINGS("Settings", "⚙")
+}
+
+private val Sky = Color(0xFF4AADE3)
+private val SkyBright = Color(0xFF83D0F5)
+private val LightBackground = Color(0xFFF3FAFE)
+private val LightSurface = Color(0xFFFFFFFF)
+private val LightText = Color(0xFF142B3D)
+private val LightMuted = Color(0xFF647D90)
+private val Midnight = Color(0xFF07182D)
+private val MidnightSurface = Color(0xFF102943)
+private val MidnightRaised = Color(0xFF163550)
+private val DarkText = Color(0xFFEAF5FC)
+private val DarkMuted = Color(0xFFA4BACB)
 
 @Composable
-private fun NexusTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Violet,
-            secondary = Color(0xFF8EDCEB),
-            background = Ink,
-            surface = Panel,
-            onBackground = TextPrimary,
-            onSurface = TextPrimary
-        ),
-        content = content
-    )
+private fun NexusTheme(darkTheme: Boolean, content: @Composable () -> Unit) {
+    val colors = if (darkTheme) {
+        darkColorScheme(
+            primary = SkyBright,
+            onPrimary = Color(0xFF062039),
+            secondary = Color(0xFF9ACFEB),
+            background = Midnight,
+            onBackground = DarkText,
+            surface = MidnightSurface,
+            onSurface = DarkText,
+            surfaceVariant = MidnightRaised,
+            onSurfaceVariant = DarkMuted,
+            outline = Color(0xFF36546D)
+        )
+    } else {
+        lightColorScheme(
+            primary = Sky,
+            onPrimary = Color.White,
+            secondary = Color(0xFF287EAD),
+            background = LightBackground,
+            onBackground = LightText,
+            surface = LightSurface,
+            onSurface = LightText,
+            surfaceVariant = Color(0xFFE6F3FA),
+            onSurfaceVariant = LightMuted,
+            outline = Color(0xFFD0E2ED)
+        )
+    }
+    MaterialTheme(colorScheme = colors, content = content)
 }
 
 @Composable
-private fun NexusHome() {
+private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
+    var page by rememberSaveable { mutableStateOf(NexusPage.HOME) }
     var draft by rememberSaveable { mutableStateOf("") }
-    var avatarMode by rememberSaveable { mutableStateOf(AvatarMode.ALLIUM) }
     val keyboard = LocalSoftwareKeyboardController.current
     val chat = remember {
         mutableStateListOf(
-            ChatLine(0, "I’m here. Connect an AI provider to start a conversation.", false)
+            ChatLine(0, "NEXUS is ready to explore. Connect an AI provider in Settings before expecting generated replies.", false)
         )
     }
     val voiceInput = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        draft = result.data
-            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-            .orEmpty()
+        draft = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+        if (draft.isNotBlank()) page = NexusPage.CHAT
     }
 
-    fun submit() {
+    fun submitMessage() {
         val message = draft.trim()
         if (message.isNotEmpty()) {
             chat += ChatLine(chat.size + 1, message, true)
             chat += ChatLine(
                 chat.size + 1,
-                "The NEXUS AI engine is not connected yet, so this message has not been processed.",
+                "The NEXUS AI engine is not connected yet, so I can't generate a reply. Your message has not been sent to an AI provider.",
                 false
             )
             draft = ""
@@ -152,256 +189,416 @@ private fun NexusHome() {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF171326), Color(0xFF0C0D18), Ink)
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = { NexusTopBar(onStatusClick = { page = NexusPage.SETTINGS }) },
+        bottomBar = { NexusNavigationBar(selected = page, onSelect = { page = it }) }
+    ) { contentPadding ->
+        Box(Modifier.fillMaxSize().padding(contentPadding)) {
+            when (page) {
+                NexusPage.HOME -> HomeScreen(
+                    onOpenChat = { page = NexusPage.CHAT },
+                    onOpenBrowser = { page = NexusPage.BROWSER },
+                    onOpenMindSpace = { page = NexusPage.MIND_SPACE },
+                    onOpenSettings = { page = NexusPage.SETTINGS }
                 )
-            )
-            .imePadding()
-            .padding(horizontal = 18.dp)
-    ) {
-        Header()
-        Spacer(Modifier.height(12.dp))
+                NexusPage.CHAT -> ChatScreen(
+                    chat = chat,
+                    draft = draft,
+                    onDraftChange = { draft = it },
+                    onSend = { submitMessage() },
+                    onVoice = {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to NEXUS")
+                        }
+                        try {
+                            voiceInput.launch(intent)
+                        } catch (_: ActivityNotFoundException) {
+                            chat += ChatLine(chat.size + 1, "No speech recognition app is available on this device.", false)
+                        }
+                    }
+                )
+                NexusPage.BROWSER -> BrowserScreen()
+                NexusPage.MIND_SPACE -> MindSpaceScreen()
+                NexusPage.SETTINGS -> SettingsScreen(darkTheme = darkTheme, onThemeChange = onThemeChange)
+            }
+        }
+    }
+}
 
-        AvatarStage(
-            mode = avatarMode,
-            onModeChange = { avatarMode = it },
-            modifier = Modifier.weight(1f).fillMaxWidth()
-        )
-
+@Composable
+private fun NexusTopBar(onStatusClick: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("CONVERSATION", color = Muted, fontSize = 9.sp, letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
-                Text("A quiet place to think out loud.", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Image(
+                painter = painterResource(R.drawable.ic_nexus_launcher_foreground),
+                contentDescription = "NEXUS logo",
+                modifier = Modifier.size(38.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("NEXUS", color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp)
+                Text("YOUR PERSONAL AI SPACE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 8.sp, letterSpacing = 1.35.sp)
             }
-            Text("SESSION", color = Color(0xFF8E85AA), fontSize = 9.sp, letterSpacing = 1.5.sp)
+            Surface(
+                onClick = onStatusClick,
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            ) {
+                Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(7.dp).background(Color(0xFFE0A64B), CircleShape))
+                    Spacer(Modifier.width(7.dp))
+                    Text("AI OFFLINE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
+                }
+            }
         }
+    }
+}
 
+@Composable
+private fun NexusNavigationBar(selected: NexusPage, onSelect: (NexusPage) -> Unit) {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 0.dp
+    ) {
+        NexusPage.entries.forEach { item ->
+            NavigationBarItem(
+                selected = selected == item,
+                onClick = { onSelect(item) },
+                icon = {
+                    Text(item.symbol, fontSize = 19.sp, fontWeight = if (selected == item) FontWeight.SemiBold else FontWeight.Normal)
+                },
+                label = { Text(item.label, fontSize = 9.sp, maxLines = 1) },
+                alwaysShowLabel = true
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeScreen(
+    onOpenChat: () -> Unit,
+    onOpenBrowser: () -> Unit,
+    onOpenMindSpace: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp).padding(top = 18.dp, bottom = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Your space, at a glance", color = MaterialTheme.colorScheme.onBackground, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+            Text("A home for your AI tools and companions.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        }
+        AlliumStage()
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionHeading("QUICK ACCESS", "Open a workspace")
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                QuickAccessCard(Modifier.weight(1f), "▤", "Chat", "Talk to NEXUS", onOpenChat)
+                QuickAccessCard(Modifier.weight(1f), "◎", "Browser", "Web tools", onOpenBrowser)
+                QuickAccessCard(Modifier.weight(1f), "✧", "Mind Space", "AI residents", onOpenMindSpace)
+            }
+        }
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(22.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().clickable(onClick = onOpenSettings).padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.size(38.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                    Text("◉", color = MaterialTheme.colorScheme.primary, fontSize = 19.sp)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("AI engine", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("No provider connected yet", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                }
+                Text("SET UP  ›", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlliumStage() {
+    val stageBrush = if (MaterialTheme.colorScheme.background == Midnight) {
+        Brush.verticalGradient(listOf(Color(0xFF153B5B), Color(0xFF0B223A), Color(0xFF091A2E)))
+    } else {
+        Brush.verticalGradient(listOf(Color(0xFFE1F4FC), Color(0xFFD5EDF8), Color(0xFFEAF6FB)))
+    }
+    Box(
+        Modifier.fillMaxWidth().height(390.dp).clip(RoundedCornerShape(30.dp)).background(stageBrush)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(30.dp))
+    ) {
+        Box(
+            Modifier.align(Alignment.Center).size(250.dp).background(
+                Brush.radialGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.20f), Color.Transparent)),
+                CircleShape
+            )
+        )
+        AlliumLive2D(Modifier.fillMaxSize().padding(top = 22.dp, bottom = 58.dp))
+        Surface(
+            Modifier.align(Alignment.TopStart).padding(16.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+            shape = RoundedCornerShape(50)
+        ) {
+            Text("ALLIUM  /  LIVE2D", Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = MaterialTheme.colorScheme.onSurface, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+        }
+        Column(
+            Modifier.align(Alignment.BottomStart).fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, MaterialTheme.colorScheme.background.copy(alpha = 0.82f))))
+                .padding(horizontal = 18.dp, vertical = 15.dp)
+        ) {
+            Text("ALLIUM", color = MaterialTheme.colorScheme.onBackground, fontSize = 17.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Text("Your NEXUS companion", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun SectionHeading(title: String, subtitle: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+        Text(subtitle, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun QuickAccessCard(
+    modifier: Modifier = Modifier,
+    symbol: String,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(symbol, color = MaterialTheme.colorScheme.primary, fontSize = 21.sp)
+            Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, lineHeight = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun ChatScreen(
+    chat: List<ChatLine>,
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onVoice: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp, vertical = 14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("Conversation", color = MaterialTheme.colorScheme.onBackground, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            Text("Your messages stay on this screen until an AI provider is connected.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+        OfflineNotice()
+        Spacer(Modifier.height(12.dp))
         LazyColumn(
-            modifier = Modifier.fillMaxWidth().height(104.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+            Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
+            contentPadding = PaddingValues(vertical = 6.dp)
         ) {
             items(chat, key = { it.id }) { line ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = if (line.fromUser) Arrangement.End else Arrangement.Start
-                ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = if (line.fromUser) Arrangement.End else Arrangement.Start) {
                     Surface(
-                        modifier = Modifier.fillMaxWidth(if (line.fromUser) 0.86f else 0.96f),
-                        color = if (line.fromUser) Color(0xFF302744) else Color(0xFF171A29),
-                        shape = RoundedCornerShape(15.dp)
+                        Modifier.fillMaxWidth(if (line.fromUser) 0.84f else 0.96f),
+                        color = if (line.fromUser) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(17.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                     ) {
-                        Text(
-                            line.text,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                            color = if (line.fromUser) Color(0xFFF1E9FF) else Color(0xFFC6C4D4),
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp
-                        )
+                        Text(line.text, Modifier.padding(horizontal = 14.dp, vertical = 11.dp), color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, lineHeight = 19.sp)
                     }
                 }
             }
         }
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Surface(
-                onClick = {
-                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to NEXUS")
-                    }
-                    try {
-                        voiceInput.launch(intent)
-                    } catch (_: ActivityNotFoundException) {
-                        chat += ChatLine(chat.size + 1, "No speech recognition app is available.", false)
-                    }
-                },
-                modifier = Modifier.size(50.dp),
+                onClick = onVoice,
+                modifier = Modifier.size(48.dp),
                 shape = CircleShape,
-                color = Color(0xFF29223A),
-                contentColor = Violet
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("⌁", fontSize = 25.sp, fontWeight = FontWeight.Light)
+                    Text("⌁", color = MaterialTheme.colorScheme.primary, fontSize = 24.sp)
                 }
             }
             Spacer(Modifier.width(9.dp))
             OutlinedTextField(
                 value = draft,
-                onValueChange = { draft = it },
+                onValueChange = onDraftChange,
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Talk to NEXUS", color = Muted, fontSize = 13.sp) },
+                placeholder = { Text("Write a message", fontSize = 13.sp) },
                 singleLine = true,
                 shape = RoundedCornerShape(18.dp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { submit() })
+                keyboardActions = KeyboardActions(onSend = { onSend() })
             )
             Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = { submit() },
-                modifier = Modifier.size(50.dp),
-                shape = CircleShape,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Color(0xFF171222))
-            ) {
-                Text("↑", fontSize = 24.sp, fontWeight = FontWeight.Medium)
+            Button(onClick = onSend, modifier = Modifier.size(48.dp), shape = CircleShape, contentPadding = PaddingValues(0.dp)) {
+                Text("↑", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
 }
 
 @Composable
-private fun Header() {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Image(
-            painter = painterResource(R.drawable.ic_nexus_launcher_foreground),
-            contentDescription = "NEXUS logo",
-            modifier = Modifier.size(42.dp)
-        )
-        Spacer(Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text("NEXUS", color = TextPrimary, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-            Text("YOUR AI COMPANION", color = Muted, fontSize = 8.sp, letterSpacing = 2.1.sp)
-        }
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = Color(0xFF292238),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF51416E))
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(Modifier.size(6.dp).background(Color(0xFFFFC477), CircleShape))
-                Spacer(Modifier.width(7.dp))
-                Text("ENGINE SETUP", color = Color(0xFFE4C99F), fontSize = 8.sp, letterSpacing = 1.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-}
-
-@Composable
-private fun AvatarStage(
-    mode: AvatarMode,
-    onModeChange: (AvatarMode) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val transition = rememberInfiniteTransition(label = "avatarGlow")
-    val glow by transition.animateFloat(
-        initialValue = 0.30f,
-        targetValue = 0.72f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "glow"
-    )
-
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(30.dp))
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF29213F), Color(0xFF17182A), Color(0xFF111320))
-                )
-            )
-            .border(1.dp, Color(0xFF4A3D61).copy(alpha = 0.7f), RoundedCornerShape(30.dp))
-    ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .size(230.dp)
-                .background(
-                    Brush.radialGradient(
-                        listOf(Violet.copy(alpha = glow * 0.24f), Color.Transparent)
-                    ),
-                    CircleShape
-                )
-        )
-
-        if (mode == AvatarMode.ALLIUM) {
-            AlliumLive2D(
-                modifier = Modifier.fillMaxSize().padding(top = 8.dp, bottom = 54.dp)
-            )
-        } else {
-            Column(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(116.dp)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(Color(0xFFD5C6FF), Color(0xFF8069B7), Color(0xFF302A4D))
-                            ),
-                            CircleShape
-                        )
-                        .border(1.dp, Color(0xFFD8C8FF).copy(alpha = 0.55f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("✦", color = Color.White, fontSize = 48.sp)
-                }
-                Spacer(Modifier.height(12.dp))
-                Text("NEXUS ORB", color = TextPrimary, fontSize = 12.sp, letterSpacing = 3.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-
-        Column(
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 18.dp, bottom = 18.dp)
-        ) {
-            Text(
-                if (mode == AvatarMode.ALLIUM) "ALLIUM" else "NEXUS ORB",
-                color = TextPrimary,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 2.sp
-            )
-            Text(
-                if (mode == AvatarMode.ALLIUM) "Live2D companion" else "Minimal companion mode",
-                color = Color(0xFFB8AECF),
-                fontSize = 11.sp
-            )
-        }
-
-        Row(
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            AvatarChoice("ALLIUM", selected = mode == AvatarMode.ALLIUM) { onModeChange(AvatarMode.ALLIUM) }
-            AvatarChoice("ORB", selected = mode == AvatarMode.ORB) { onModeChange(AvatarMode.ORB) }
-        }
-    }
-}
-
-@Composable
-private fun AvatarChoice(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun OfflineNotice() {
     Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(50),
-        color = if (selected) Color(0xFFBDA7FF) else Color(0xFF252536),
-        contentColor = if (selected) Color(0xFF171222) else Color(0xFFD2CCDF),
-        border = if (selected) null else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4B465C))
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
-        Text(
-            label,
-            modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
-            fontSize = 8.sp,
-            letterSpacing = 1.sp,
-            fontWeight = FontWeight.Bold
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(7.dp).background(Color(0xFFE0A64B), CircleShape))
+            Spacer(Modifier.width(9.dp))
+            Text("AI provider not connected", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun BrowserScreen() {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text("Browser", color = MaterialTheme.colorScheme.onBackground, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+        Text("Search and explore the web from NEXUS.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        EmptyFeatureCard(
+            symbol = "◎",
+            title = "Browser is not connected",
+            description = "The browser and web-search tools are planned, but they are not available in this build yet."
         )
+    }
+}
+
+@Composable
+private fun MindSpaceScreen() {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text("Mind Space", color = MaterialTheme.colorScheme.onBackground, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+        Text("The shared environment for NEXUS agents and companions.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(22.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("NEXUS CORE", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                Text("The foundation of your Mind Space", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Own agent runtime, hybrid AI, shared memory and permission-controlled tools.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 18.sp)
+                Text("FOUNDATION IN DEVELOPMENT", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+            }
+        }
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(22.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Row(Modifier.fillMaxWidth().padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                    Text("✧", color = MaterialTheme.colorScheme.primary, fontSize = 23.sp)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Allium", color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Primary companion · Live2D", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                }
+                Text("CHARACTER", color = MaterialTheme.colorScheme.primary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        EmptyFeatureCard(
+            symbol = "＋",
+            title = "More residents",
+            description = "NEXUS is designed to support additional AI residents. No other residents are configured yet."
+        )
+    }
+}
+
+@Composable
+private fun SettingsScreen(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text("Settings", color = MaterialTheme.colorScheme.onBackground, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+        Text("Personalize your NEXUS experience.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("APPEARANCE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                Text("Choose your theme", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FilterChip(selected = !darkTheme, onClick = { onThemeChange(false) }, label = { Text("Light") })
+                    FilterChip(selected = darkTheme, onClick = { onThemeChange(true) }, label = { Text("Midnight") })
+                }
+            }
+        }
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("AI CONNECTION", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                Text("No AI provider connected", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("Provider setup and model routing will appear here when the connection flow is implemented.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 18.sp)
+            }
+        }
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("ABOUT", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                Text("NEXUS  ·  0.1.0", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("An independent AI ecosystem, built Android-first.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyFeatureCard(symbol: String, title: String, description: String) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(22.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Text(symbol, color = MaterialTheme.colorScheme.primary, fontSize = 30.sp)
+            Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 18.sp)
+        }
     }
 }
 
@@ -410,8 +607,10 @@ private fun AlliumLive2D(modifier: Modifier = Modifier) {
     val activity = LocalContext.current as? MainActivity
     val glView = remember(activity) {
         requireNotNull(activity) { "Allium renderer requires an Activity context." }.let { host ->
-            LAppDelegate.getInstance().onStart(host)
-            host.alliumInitialized = true
+            if (!host.alliumInitialized) {
+                LAppDelegate.getInstance().onStart(host)
+                host.alliumInitialized = true
+            }
             GLSurfaceView(host).apply {
                 host.alliumGlView = this
                 setEGLContextClientVersion(2)

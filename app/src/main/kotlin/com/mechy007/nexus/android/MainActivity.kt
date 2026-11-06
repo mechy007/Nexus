@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -47,6 +48,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -73,6 +75,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import kotlinx.coroutines.launch
+import com.mechy007.nexus.core.ToolRequest
+import com.mechy007.nexus.core.ToolApprovalResult
 import com.live2d.demo.full.GLRenderer
 import com.live2d.demo.full.LAppDelegate
 
@@ -178,6 +182,8 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
     var speakNextReply by remember { mutableStateOf(false) }
     var pendingVoiceMessage by remember { mutableStateOf<String?>(null) }
     var isSending by remember { mutableStateOf(false) }
+    var pendingApproval by remember { mutableStateOf<ToolRequest?>(null) }
+    var isApprovingAction by remember { mutableStateOf(false) }
     var voiceStatus by rememberSaveable { mutableStateOf(AlliumVoiceController.Status.IDLE) }
     val chat = remember {
         mutableStateListOf(
@@ -231,9 +237,18 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
             isSending = true
             scope.launch {
                 try {
-                    val answer = AndroidNexusRuntime.respond(message)
-                    chat += ChatLine(chat.size + 1, answer, false)
-                    if (shouldSpeak) voiceController.speak(answer)
+                    val turn = AndroidNexusRuntime.respondTurn(message)
+                    when {
+                        turn.reply != null -> {
+                            chat += ChatLine(chat.size + 1, turn.reply, false)
+                            if (shouldSpeak) voiceController.speak(turn.reply)
+                        }
+                        turn.pendingTool != null -> {
+                            pendingApproval = turn.pendingTool
+                            chat += ChatLine(chat.size + 1, "Allium is requesting permission to perform a device action. Review the action before approving it.", false)
+                        }
+                        else -> chat += ChatLine(chat.size + 1, turn.failure ?: "NEXUS could not complete the request.", false)
+                    }
                 } catch (_: Exception) {
                     chat += ChatLine(chat.size + 1, "NEXUS could not get a reply. Check the provider API key, model name, internet connection and account limits in Settings.", false)
                 } finally {
@@ -292,6 +307,67 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                 )
             }
         }
+    }
+
+    val requestedAction = pendingApproval
+    if (requestedAction != null) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isApprovingAction) {
+                    scope.launch { AndroidNexusRuntime.rejectPending(requestedAction.id) }
+                    pendingApproval = null
+                }
+            },
+            title = { Text("Approve device action?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Allium wants NEXUS to perform this action on your Android device:")
+                    Text(describePendingAction(requestedAction), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("This approval applies only to this exact request and expires after five minutes.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isApprovingAction,
+                    onClick = {
+                        isApprovingAction = true
+                        scope.launch {
+                            when (val outcome = AndroidNexusRuntime.approvePending(requestedAction.id)) {
+                                is ToolApprovalResult.Executed -> {
+                                    val message = if (outcome.result.success) outcome.result.output
+                                        else "The action failed: " + (outcome.result.errorCode ?: "unknown error")
+                                    chat += ChatLine(chat.size + 1, message, false)
+                                }
+                                ToolApprovalResult.Expired -> chat += ChatLine(chat.size + 1, "That approval request expired. Ask Allium to try again.", false)
+                                ToolApprovalResult.NotFound -> chat += ChatLine(chat.size + 1, "That approval request is no longer available.", false)
+                                ToolApprovalResult.Unavailable -> chat += ChatLine(chat.size + 1, "The requested action is no longer available.", false)
+                            }
+                            pendingApproval = null
+                            isApprovingAction = false
+                        }
+                    }
+                ) { Text("Approve once") }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isApprovingAction,
+                    onClick = {
+                        scope.launch { AndroidNexusRuntime.rejectPending(requestedAction.id) }
+                        pendingApproval = null
+                    }
+                ) { Text("Reject") }
+            }
+        )
+    }
+}
+
+private fun describePendingAction(request: ToolRequest): String {
+    val args = request.arguments
+    return when (request.toolId.value) {
+        "android.launch_app" -> "Open installed app\nPackage: " + args["packageName"].orEmpty()
+        "android.open_url" -> "Open this link with Android's app chooser:\n" + args["url"].orEmpty()
+        "android.share_text" -> "Open Android Sharesheet with this text:\n" + args["text"].orEmpty().take(1200)
+        else -> "Tool: " + request.toolId.value + "\nArguments: " + args.entries.joinToString { it.key + "=" + it.value.take(300) }
     }
 }
 

@@ -36,11 +36,13 @@ class AndroidLaunchAppTool(private val bridge: AndroidDeviceActionBridge) : Tool
     override val description = "Open an installed app by its exact Android package name. Requires user approval."
 
     override suspend fun execute(request: ToolRequest): ToolResult {
-        if (request.arguments.keys != setOf("packageName")) return ToolResult(false, errorCode = "INVALID_ARGUMENTS")
-        val packageName = request.arguments["packageName"].orEmpty()
-        val app = bridge.listLaunchableApps().firstOrNull { it.packageName == packageName }
-            ?: return ToolResult(false, errorCode = "APP_NOT_AVAILABLE")
-        return when (bridge.launchApp(packageName)) {
+        if (request.arguments.keys != setOf("appName")) return ToolResult(false, errorCode = "INVALID_ARGUMENTS")
+        val appName = request.arguments["appName"].orEmpty().trim()
+        if (appName.isBlank() || appName.length > 120) return ToolResult(false, errorCode = "INVALID_APP_NAME")
+        val matches = bridge.listLaunchableApps().filter { it.label.equals(appName, ignoreCase = true) }
+        if (matches.size != 1) return ToolResult(false, errorCode = if (matches.isEmpty()) "APP_NOT_AVAILABLE" else "APP_NAME_AMBIGUOUS")
+        val app = matches.single()
+        return when (bridge.launchApp(app.packageName)) {
             AndroidDeviceActionBridge.ActionResult.Launched -> ToolResult(true, "Opened " + app.label + ".")
             AndroidDeviceActionBridge.ActionResult.NoHandler -> ToolResult(false, errorCode = "APP_NOT_LAUNCHABLE")
             is AndroidDeviceActionBridge.ActionResult.Rejected -> ToolResult(false, errorCode = "ACTION_REJECTED")

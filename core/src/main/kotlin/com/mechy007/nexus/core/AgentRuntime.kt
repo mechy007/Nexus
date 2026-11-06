@@ -98,7 +98,7 @@ class AgentRuntime(
         val pending = pendingApprovals.remove(requestId) ?: return ToolApprovalResult.NotFound
         if (Instant.now().isAfter(pending.createdAt.plusSeconds(300))) return ToolApprovalResult.Expired
         val current = tools.find(pending.request.toolId) ?: return ToolApprovalResult.Unavailable
-        if (!current.enabled || current.adapter !== pending.registration.adapter) {
+        if (current != pending.registration) {
             return ToolApprovalResult.Unavailable
         }
         val result = try {

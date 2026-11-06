@@ -227,7 +227,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { NexusTopBar(onStatusClick = { page = NexusPage.SETTINGS }) },
+        topBar = { NexusTopBar(connected = providerConnected, onStatusClick = { page = NexusPage.SETTINGS }) },
         bottomBar = { NexusNavigationBar(selected = page, onSelect = { page = it }) }
     ) { contentPadding ->
         Box(Modifier.fillMaxSize().padding(contentPadding)) {
@@ -267,7 +267,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
 }
 
 @Composable
-private fun NexusTopBar(onStatusClick: () -> Unit) {
+private fun NexusTopBar(connected: Boolean, onStatusClick: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
@@ -290,9 +290,9 @@ private fun NexusTopBar(onStatusClick: () -> Unit) {
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(7.dp).background(Color(0xFFE0A64B), CircleShape))
+                    Box(Modifier.size(7.dp).background(if (connected) Color(0xFF54C78A) else Color(0xFFE0A64B), CircleShape))
                     Spacer(Modifier.width(7.dp))
-                    Text("AI OFFLINE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
+                    Text(if (connected) "AI READY" else "AI OFFLINE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
                 }
             }
         }

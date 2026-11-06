@@ -316,6 +316,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
             onDismissRequest = {
                 if (!isApprovingAction) {
                     scope.launch { AndroidNexusRuntime.rejectPending(requestedAction.id) }
+                    chat += ChatLine(chat.size + 1, "Action dismissed. Nothing was approved.", false)
                     pendingApproval = null
                 }
             },
@@ -333,18 +334,23 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                     onClick = {
                         isApprovingAction = true
                         scope.launch {
-                            when (val outcome = AndroidNexusRuntime.approvePending(requestedAction.id)) {
-                                is ToolApprovalResult.Executed -> {
-                                    val message = if (outcome.result.success) outcome.result.output
-                                        else "The action failed: " + (outcome.result.errorCode ?: "unknown error")
-                                    chat += ChatLine(chat.size + 1, message, false)
+                            try {
+                                when (val outcome = AndroidNexusRuntime.approvePending(requestedAction.id)) {
+                                    is ToolApprovalResult.Executed -> {
+                                        val message = if (outcome.result.success) outcome.result.output
+                                            else "The action failed: " + (outcome.result.errorCode ?: "unknown error")
+                                        chat += ChatLine(chat.size + 1, message, false)
+                                    }
+                                    ToolApprovalResult.Expired -> chat += ChatLine(chat.size + 1, "That approval request expired. Ask Allium to try again.", false)
+                                    ToolApprovalResult.NotFound -> chat += ChatLine(chat.size + 1, "That approval request is no longer available.", false)
+                                    ToolApprovalResult.Unavailable -> chat += ChatLine(chat.size + 1, "The requested action is no longer available.", false)
                                 }
-                                ToolApprovalResult.Expired -> chat += ChatLine(chat.size + 1, "That approval request expired. Ask Allium to try again.", false)
-                                ToolApprovalResult.NotFound -> chat += ChatLine(chat.size + 1, "That approval request is no longer available.", false)
-                                ToolApprovalResult.Unavailable -> chat += ChatLine(chat.size + 1, "The requested action is no longer available.", false)
+                            } catch (_: Exception) {
+                                chat += ChatLine(chat.size + 1, "NEXUS could not verify the final action outcome. Check the destination app before retrying.", false)
+                            } finally {
+                                pendingApproval = null
+                                isApprovingAction = false
                             }
-                            pendingApproval = null
-                            isApprovingAction = false
                         }
                     }
                 ) { Text("Approve once") }
@@ -354,6 +360,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                     enabled = !isApprovingAction,
                     onClick = {
                         scope.launch { AndroidNexusRuntime.rejectPending(requestedAction.id) }
+                        chat += ChatLine(chat.size + 1, "Action rejected. Nothing was executed.", false)
                         pendingApproval = null
                     }
                 ) { Text("Reject") }

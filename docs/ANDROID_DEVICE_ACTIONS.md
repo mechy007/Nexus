@@ -1,21 +1,36 @@
-# Android device action bridge
+# Android device actions and approval
 
-NEXUS now has a narrow Android-side bridge for three foreground actions:
+NEXUS exposes a narrow set of foreground Android actions through its host bridge and agent tool registry:
 
-- List launchable apps and launch an installed app by package name.
+- Open an installed app by its exact visible app name. App names are resolved locally; the installed-app inventory is not sent to the AI provider.
 - Open a validated HTTP(S) link using Android's app chooser.
-- Share text through the Android Sharesheet.
+- Place text into Android's Sharesheet for the user to choose a destination and send.
+
+## Approval lifecycle
+
+1. The structured agent runtime may propose one of the registered actions.
+2. The runtime validates the tool identity, trust tier, capability policy, and bounded arguments.
+3. Android's permission manager always returns REQUIRES_USER_ACTION for these tools.
+4. NEXUS displays the exact action and its relevant payload in a confirmation dialog.
+5. Approval executes only the matching in-memory request once. It expires after five minutes, is discarded on process death, and cannot be reused.
+6. Rejection discards the request without invoking the Android bridge. The action outcome is recorded in an bounded app-private audit log without storing payload text.
+
+The approval is request-specific: it does not create a standing permission or grant future actions. The runtime rechecks that the tool registration is unchanged before execution.
 
 ## Safety boundaries
 
-- The bridge does not send messages, choose recipients, or complete a share on the user's behalf.
-- Opening links and sharing text hands control to Android UI; the user chooses the destination and completes the action.
-- Only launcher-visible installed apps are launchable. The bridge does not install apps.
-- Web links must use HTTP or HTTPS, include a host, contain no embedded credentials, and stay within the length limit.
+- No silent message sending, recipient selection, app installation, background execution, or automatic follow-through.
+- Launching an app is limited to launcher-visible installed apps.
+- Opening a link hands control to Android's chooser; the user chooses the destination app.
+- Sharing text opens the Android Sharesheet; NEXUS does not send the text. The user must choose an app and complete the send.
+- Links must use HTTP or HTTPS, include a host, contain no embedded credentials, and stay within the length limit.
 - Blank or oversized share payloads are rejected.
-- Action results distinguish launched, no handler, rejected input, and host failure. A launched chooser is not proof that a message was sent or a task completed.
-- The bridge itself does not request broad permissions, run in the background, or listen continuously.
+- A chooser being launched is not proof that a message was sent or a task completed.
+- The action audit keeps a bounded history of metadata and outcomes only; it does not record action arguments or shared text.
 
-## Integration status
+## Current limitations
 
-This is the Android host adapter foundation. It is not yet exposed as an AI-callable tool or wired to a confirmation UI. The agent runtime must request user approval before sensitive actions, and the UI must display the exact action and payload before invoking the bridge. Future messaging support must continue to use an explicit user-facing app flow rather than silently sending messages.
+- The first structured agent integration supports app launch, URL chooser, and text Sharesheet only.
+- The approval request is held in memory and intentionally fails closed after process death.
+- The AI provider must return the strict JSON decision format. Invalid or unsupported tool requests fail without executing an action.
+- Real-device verification is still required for app visibility, chooser behavior, and the approval UI across Android versions.

@@ -57,6 +57,22 @@ data class AgentTurnResult(
     val trace: AgentTrace
 )
 
+sealed interface ToolApprovalResult {
+    data class Executed(val result: ToolResult) : ToolApprovalResult
+    data object NotFound : ToolApprovalResult
+    data object Expired : ToolApprovalResult
+    data object Unavailable : ToolApprovalResult
+}
+
+/** A one-shot approval is bound to the exact request and adapter that produced it. */
+private data class PendingToolExecution(
+    val request: ToolRequest,
+    val agent: AgentProfile,
+    val session: NexusSession,
+    val registration: ToolRegistration,
+    val createdAt: Instant = Instant.now()
+)
+
 /**
  * NEXUS-owned orchestration loop. The decision engine proposes actions; this class
  * alone validates identity, checks trust and permissions, executes tools and records traces.
@@ -73,7 +89,55 @@ class AgentRuntime(
     private val maxSteps: Int = 12,
     private val toolExecutionPolicy: ToolExecutionPolicy = ToolExecutionPolicy()
 ) {
+    private val pendingApprovals = ConcurrentHashMap<String, PendingToolExecution>()
+
     init { require(maxSteps > 0) }
+
+    /** Executes only the exact, in-memory request that was previously shown for approval. */
+    suspend fun approvePending(requestId: String): ToolApprovalResult {
+        val pending = pendingApprovals.remove(requestId) ?: return ToolApprovalResult.NotFound
+        if (Instant.now().isAfter(pending.createdAt.plusSeconds(300))) return ToolApprovalResult.Expired
+        val current = tools.find(pending.request.toolId) ?: return ToolApprovalResult.Unavailable
+        if (current != pending.registration) {
+            return ToolApprovalResult.Unavailable
+        }
+        val result = try {
+            toolExecutionPolicy.validate(pending.request)
+            toolExecutionPolicy.bound(withTimeout(toolExecutionPolicy.timeoutMillis) {
+                current.adapter.execute(pending.request)
+            })
+        } catch (_: TimeoutCancellationException) {
+            ToolResult(false, errorCode = "TOOL_TIMEOUT")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            ToolResult(false, errorCode = "TOOL_EXCEPTION")
+        }
+        audit.record(AuditEvent(
+            pending.agent.id.value, "tool.execute", pending.request.toolId.value,
+            if (result.success) "approved_success" else "approved_failure"
+        ))
+        val currentSession = sessions.get(pending.request.sessionId) ?: pending.session
+        val updated = currentSession.copy(
+            messages = currentSession.messages + NexusMessage(
+                role = MessageRole.TOOL,
+                content = if (result.success) result.output else "Tool failed: " + (result.errorCode ?: "UNKNOWN"),
+                metadata = mapOf("toolId" to pending.request.toolId.value, "requestId" to pending.request.id)
+            ),
+            updatedAt = Instant.now()
+        )
+        sessions.save(updated)
+        return ToolApprovalResult.Executed(result)
+    }
+
+    /** Rejects a pending request without invoking its adapter. */
+    suspend fun rejectPending(requestId: String): Boolean {
+        val pending = pendingApprovals.remove(requestId) ?: return false
+        audit.record(AuditEvent(
+            pending.agent.id.value, "tool.execute", pending.request.toolId.value, "user_rejected"
+        ))
+        return true
+    }
 
     suspend fun run(sessionId: SessionId, agentId: AgentId, userText: String): AgentTurnResult {
         require(userText.isNotBlank()) { "Message cannot be blank." }
@@ -185,6 +249,19 @@ class AgentRuntime(
                             return finish(AgentTurnStatus.FAILED, failure = "Permission denied for tool.")
                         }
                         GrantDecision.REQUIRES_USER_ACTION -> {
+                            val now = Instant.now()
+                            pendingApprovals.entries.removeIf { it.value.createdAt.plusSeconds(300).isBefore(now) }
+                            if (pendingApprovals.size >= 32) {
+                                audit.record(AuditEvent(agentId.value, "tool.execute", request.toolId.value, "approval_queue_full"))
+                                return finish(AgentTurnStatus.FAILED, failure = "Too many pending approvals. Resolve an existing request first.")
+                            }
+                            pendingApprovals[request.id] = PendingToolExecution(
+                                request = request,
+                                agent = agent,
+                                session = session,
+                                registration = registration,
+                                createdAt = now
+                            )
                             audit.record(AuditEvent(agentId.value, "tool.execute", request.toolId.value, "awaiting_approval"))
                             return finish(AgentTurnStatus.AWAITING_APPROVAL, pending = request)
                         }

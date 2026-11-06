@@ -98,6 +98,61 @@ class AgentRuntimeIntegrationTest {
         assertEquals(false, executed)
     }
 
+    @Test fun approvalExecutesOnlyTheExactPendingRequestOnce() = runSuspend {
+        var executions = 0
+        val tool = object : ToolAdapter {
+            override val id = ToolId("open")
+            override val description = "Open target"
+            override suspend fun execute(request: ToolRequest): ToolResult {
+                executions++
+                return ToolResult(true, "opened:" + request.arguments["target"])
+            }
+        }
+        val profile = AgentProfile(AgentId("lara"), "Lara", "test", "prompt")
+        val sessions = Sessions()
+        val registry = ToolRegistry().apply { register(ToolRegistration(tool)) }
+        val engine = AgentDecisionEngine { c -> AgentDecision.CallTool(ToolRequest(
+            toolId = tool.id, requestedBy = c.agent.id, sessionId = c.session.id,
+            arguments = mapOf("target" to "exact-item")
+        )) }
+        val runtime = AgentRuntime(Agents(profile), engine, sessions, registry,
+            Permissions(GrantDecision.REQUIRES_USER_ACTION), Audit(), InMemoryTraceStore())
+        val pending = runtime.run(SessionId("approval-once"), AgentId("lara"), "Open it")
+        val request = assertNotNull(pending.pendingTool)
+        assertEquals(0, executions)
+        val approved = runtime.approvePending(request.id)
+        assertTrue(approved is ToolApprovalResult.Executed)
+        assertEquals("opened:exact-item", (approved as ToolApprovalResult.Executed).result.output)
+        assertEquals(1, executions)
+        assertTrue(runtime.approvePending(request.id) is ToolApprovalResult.NotFound)
+        assertEquals(1, executions)
+        assertTrue(sessions.get(SessionId("approval-once"))!!.messages.any {
+            it.role == MessageRole.TOOL && it.content == "opened:exact-item"
+        })
+    }
+
+    @Test fun rejectionNeverExecutesPendingTool() = runSuspend {
+        var executions = 0
+        val tool = object : ToolAdapter {
+            override val id = ToolId("share")
+            override val description = "Share text"
+            override suspend fun execute(request: ToolRequest): ToolResult {
+                executions++
+                return ToolResult(true)
+            }
+        }
+        val profile = AgentProfile(AgentId("lara"), "Lara", "test", "prompt")
+        val runtime = AgentRuntime(Agents(profile), AgentDecisionEngine { c ->
+            AgentDecision.CallTool(ToolRequest(toolId = tool.id, requestedBy = c.agent.id, sessionId = c.session.id))
+        }, Sessions(), ToolRegistry().apply { register(ToolRegistration(tool)) },
+            Permissions(GrantDecision.REQUIRES_USER_ACTION), Audit(), InMemoryTraceStore())
+        val pending = runtime.run(SessionId("approval-reject"), AgentId("lara"), "Share")
+        val request = assertNotNull(pending.pendingTool)
+        assertTrue(runtime.rejectPending(request.id))
+        assertEquals(0, executions)
+        assertTrue(runtime.approvePending(request.id) is ToolApprovalResult.NotFound)
+    }
+
     @Test fun deniesUnreviewedToolsAndRejectsMismatchedSession() = runSuspend {
         val profile = AgentProfile(AgentId("lara"), "Lara", "test", "prompt")
         val registry = ToolRegistry().apply {

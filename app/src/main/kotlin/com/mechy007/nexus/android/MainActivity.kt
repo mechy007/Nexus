@@ -1,10 +1,8 @@
 package com.mechy007.nexus.android
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
+import android.Manifest
 import android.opengl.GLSurfaceView
 import android.os.Bundle
-import android.speech.RecognizerIntent
 import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -163,16 +161,37 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
     var page by rememberSaveable { mutableStateOf(NexusPage.HOME) }
     var draft by rememberSaveable { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
+    var voiceStatus by rememberSaveable { mutableStateOf(AlliumVoiceController.Status.IDLE) }
     val chat = remember {
         mutableStateListOf(
             ChatLine(0, "NEXUS is ready to explore. Connect an AI provider in Settings before expecting generated replies.", false)
         )
     }
-    val voiceInput = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        draft = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
-        if (draft.isNotBlank()) page = NexusPage.CHAT
+    val context = LocalContext.current
+    val voiceController = remember(context) {
+        AlliumVoiceController(
+            context = context,
+            onStatusChanged = { voiceStatus = it },
+            onTranscript = { transcript ->
+                draft = transcript
+                page = NexusPage.CHAT
+            },
+            onError = { message ->
+                chat += ChatLine(chat.size + 1, message, false)
+            }
+        )
+    }
+    DisposableEffect(voiceController) {
+        onDispose { voiceController.release() }
+    }
+    val microphonePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            voiceController.startListening()
+        } else {
+            chat += ChatLine(chat.size + 1, "Microphone permission was denied. Voice input remains off.", false)
+        }
     }
 
     fun submitMessage() {
@@ -208,16 +227,13 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                     onDraftChange = { draft = it },
                     onSend = { submitMessage() },
                     onVoice = {
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to NEXUS")
+                        if (voiceStatus == AlliumVoiceController.Status.LISTENING) {
+                            voiceController.stopListening()
+                        } else {
+                            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
                         }
-                        try {
-                            voiceInput.launch(intent)
-                        } catch (_: ActivityNotFoundException) {
-                            chat += ChatLine(chat.size + 1, "No speech recognition app is available on this device.", false)
-                        }
-                    }
+                    },
+                    voiceStatus = voiceStatus
                 )
                 NexusPage.BROWSER -> BrowserScreen()
                 NexusPage.MIND_SPACE -> MindSpaceScreen()
@@ -401,12 +417,24 @@ private fun ChatScreen(
     draft: String,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
-    onVoice: () -> Unit
+    onVoice: () -> Unit,
+    voiceStatus: AlliumVoiceController.Status
 ) {
     Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp, vertical = 14.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text("Conversation", color = MaterialTheme.colorScheme.onBackground, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-            Text("Your messages stay on this screen until an AI provider is connected.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            Text(
+                when (voiceStatus) {
+                    AlliumVoiceController.Status.LISTENING -> "Listening… tap the microphone to stop."
+                    AlliumVoiceController.Status.SPEAKING -> "Allium is speaking."
+                    AlliumVoiceController.Status.INITIALIZING -> "Preparing voice services…"
+                    AlliumVoiceController.Status.UNAVAILABLE -> "Voice services are unavailable."
+                    AlliumVoiceController.Status.ERROR -> "Voice service needs attention."
+                    AlliumVoiceController.Status.IDLE -> "Your messages stay on this screen until an AI provider is connected."
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp
+            )
         }
         Spacer(Modifier.height(12.dp))
         OfflineNotice()
@@ -438,7 +466,7 @@ private fun ChatScreen(
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("⌁", color = MaterialTheme.colorScheme.primary, fontSize = 24.sp)
+                    Text(if (voiceStatus == AlliumVoiceController.Status.LISTENING) "■" else "⌁", color = MaterialTheme.colorScheme.primary, fontSize = 24.sp)
                 }
             }
             Spacer(Modifier.width(9.dp))

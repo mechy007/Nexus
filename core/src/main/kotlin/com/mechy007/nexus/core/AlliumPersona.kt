@@ -21,7 +21,10 @@ data class AlliumPersona(
     )
 ) {
     fun buildSystemPrompt(context: AlliumPersonaContext = AlliumPersonaContext()): String = buildString {
-        appendLine("You are $name. ${identity.trim()}")
+        val safeName = name.cleanForPromptValue() ?: "Allium"
+        val safeIdentity = identity.cleanForPromptValue()
+            ?: "A thoughtful, capable Android AI companion who speaks as herself."
+        appendLine("You are $safeName. $safeIdentity")
         appendLine()
         appendLine("PERSONALITY")
         traits.cleanForPrompt().forEach { appendLine("- $it") }
@@ -45,7 +48,8 @@ data class AlliumPersona(
         mapNotNull { it.cleanForPromptValue() }.take(12)
 
     private fun String?.cleanForPromptValue(): String? = this
-        ?.replace(Regex("[\\p{Cc}&&[^\\n\\t]]"), "")
+        ?.replace(Regex("[\\p{Cc}]"), " ")
+        ?.replace(Regex("\\s+"), " ")
         ?.trim()
         ?.take(240)
         ?.takeIf { it.isNotBlank() }

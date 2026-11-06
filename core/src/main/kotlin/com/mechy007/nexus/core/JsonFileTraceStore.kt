@@ -10,13 +10,28 @@ import java.nio.file.StandardCopyOption
 import java.time.Instant
 
 /** Durable, versioned trace storage. Trace payloads must remain free of prompts and secrets. */
-class JsonFileTraceStore(private val file: File) : TraceStore {
+class JsonFileTraceStore(
+    private val file: File,
+    private val maxRecords: Int = DEFAULT_MAX_RECORDS
+) : TraceStore {
     private val lock = Any()
+
+    init {
+        require(maxRecords > 0) { "Trace retention limit must be positive." }
+    }
+
+    companion object {
+        const val DEFAULT_MAX_RECORDS = 2_000
+    }
 
     override suspend fun save(trace: AgentTrace) = synchronized(lock) {
         val records = readAll().associateBy { it.id }.toMutableMap()
         records[trace.id] = trace
-        writeAll(records.values)
+        // Keep the newest records by start time so trace storage cannot grow forever.
+        val retained = records.values
+            .sortedBy { it.startedAt }
+            .takeLast(maxRecords)
+        writeAll(retained)
     }
 
     override suspend fun find(id: String): AgentTrace? = synchronized(lock) { readAll().firstOrNull { it.id == id } }
@@ -34,7 +49,9 @@ class JsonFileTraceStore(private val file: File) : TraceStore {
         if (!file.exists()) return emptyList()
         val root = JsonParser.parseString(file.readText(Charsets.UTF_8)).asJsonObject
         require(root.get("schemaVersion")?.asInt == 1) { "Unsupported trace schema version." }
-        return root.getAsJsonArray("traces").map { element ->
+        val traceArray = root.get("traces")
+        require(traceArray != null && traceArray.isJsonArray) { "Trace records are missing or invalid." }
+        val parsed = traceArray.asJsonArray.map { element ->
             val item = element.asJsonObject
             val steps = item.getAsJsonArray("steps").map { stepElement ->
                 val step = stepElement.asJsonObject
@@ -57,6 +74,10 @@ class JsonFileTraceStore(private val file: File) : TraceStore {
                 steps = steps, succeeded = item.get("succeeded")?.takeUnless { it.isJsonNull }?.asBoolean
             )
         }
+        require(parsed.map { it.id }.distinct().size == parsed.size) {
+            "Trace store contains duplicate record IDs."
+        }
+        return parsed
     }
 
     private fun writeAll(traces: Collection<AgentTrace>) {

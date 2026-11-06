@@ -192,6 +192,31 @@ object AndroidNexusRuntime {
     }
 
     @Synchronized
+    fun configureWithSavedKey(context: Context, providerSettings: AndroidProviderSettings) {
+        val app = context.applicationContext
+        val secrets = AndroidProviderSecretStore(app)
+        check(!secrets.resolve(ProviderId(providerSettings.providerId)).isNullOrBlank()) {
+            "No saved API key exists for this provider. Enter the key again."
+        }
+        val providers = InMemoryProviderRegistry().apply {
+            register(AndroidChatProviderAdapter(providerSettings, secrets))
+        }
+        registry = providers
+        settings = providerSettings
+        coordinator = NexusCoordinator(
+            agents = agents,
+            router = CapabilityAwareProviderRouter(providers),
+            sessions = JsonFileSessionStore(app.getDir("nexus_sessions", Context.MODE_PRIVATE))
+        )
+        app.getSharedPreferences("nexus_provider_config", Context.MODE_PRIVATE).edit()
+            .putString("provider_id", providerSettings.providerId)
+            .putString("display_name", providerSettings.displayName)
+            .putString("base_url", providerSettings.baseUrl)
+            .putString("model", providerSettings.model)
+            .apply()
+    }
+
+    @Synchronized
     fun restore(context: Context): Boolean {
         if (coordinator != null) return true
         val app = context.applicationContext

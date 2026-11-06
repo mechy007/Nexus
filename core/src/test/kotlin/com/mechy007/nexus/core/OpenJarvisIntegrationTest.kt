@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import java.time.Instant
 import kotlin.coroutines.Continuation
@@ -36,6 +37,33 @@ class OpenJarvisIntegrationTest {
         assertEquals(listOf(trace), store.recent())
         store.delete(trace.id)
         assertEquals(null, store.find(trace.id))
+    }
+
+    @Test
+    fun skillManifestRejectsMalformedOrUnboundedMetadata() {
+        assertFailsWith<IllegalArgumentException> { SkillManifest("valid", version = "latest") }
+        assertFailsWith<IllegalArgumentException> {
+            SkillManifest("valid", requiredCapabilities = setOf("filesystem write"))
+        }
+        assertFailsWith<IllegalArgumentException> { SkillManifest("valid", tags = setOf("../escape")) }
+        assertFailsWith<IllegalArgumentException> {
+            SkillManifest("valid", steps = List(SkillManifest.MAX_STEPS + 1) { SkillStep(ToolId("tool-$it")) })
+        }
+        assertFailsWith<IllegalArgumentException> { SkillStep(ToolId("bad tool id")) }
+    }
+
+    @Test
+    fun skillManifestAcceptsSemverAndNamespacedCapabilities() {
+        val manifest = SkillManifest(
+            name = "web-research",
+            version = "2.1.0-beta.1+build.7",
+            description = "A bounded research workflow",
+            steps = listOf(SkillStep(ToolId("web.search"), "Search approved sources")),
+            requiredCapabilities = setOf("network:read", "filesystem:read"),
+            tags = setOf("research", "web")
+        )
+        assertEquals("2.1.0-beta.1+build.7", manifest.version)
+        assertEquals(2, manifest.requiredCapabilities.size)
     }
 
     @Test

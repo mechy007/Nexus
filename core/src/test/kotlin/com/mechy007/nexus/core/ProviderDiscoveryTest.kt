@@ -4,6 +4,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ProviderDiscoveryTest {
@@ -25,8 +26,9 @@ class ProviderDiscoveryTest {
         assertEquals(ProviderDiscoveryStatus.DISABLED, report.entries[0].status)
         assertEquals(ProviderDiscoveryStatus.AVAILABLE, report.entries[1].status)
         assertEquals(ProviderDiscoveryStatus.UNAVAILABLE, report.entries[2].status)
+        assertEquals("UNHEALTHY", report.entries[2].failureCode)
         assertEquals(ProviderDiscoveryStatus.NOT_CHECKABLE, report.entries[3].status)
-        assertEquals("UNHEALTHY", report.entries[3].failureCode)
+        assertNull(report.entries[3].failureCode)
         assertEquals(listOf(ProviderId("healthy")), report.available)
         assertEquals(listOf(ProviderId("unhealthy")), report.unavailable)
     }
@@ -78,5 +80,4 @@ class ProviderDiscoveryTest {
         override val profile = ProviderProfile(ProviderId(id), id, ProviderCapabilities(text = true))
         override suspend fun generate(request: GenerationRequest) = GenerationResponse(profile.id, "ok")
     }
-
 }

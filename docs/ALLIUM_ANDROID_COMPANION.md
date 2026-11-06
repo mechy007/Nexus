@@ -14,6 +14,12 @@ Allium is not a decorative avatar and does not replace the NEXUS intelligence ru
 - **Live2D adapter:** maps companion state to Allium model expressions, motions and mouth parameters.
 - **NEXUS intelligence:** supplies actual responses, memory retrieval, web research and permission-gated tool execution.
 
+## Active Android integration
+
+The Android OpenAI-compatible provider adapter now builds Allium's system prompt for each request using the shared `AlliumPersona` contract. It includes the current device-local time and Android locale language, while preserving the NEXUS agent operating rules. This avoids freezing time/locale when provider settings are first configured. No name, city, mood or scene is guessed when the host has not supplied it.
+
+The host continues to own microphone permission and TTS. This prompt integration does not add background listening, device actions, or automatic memory capture.
+
 ## OpenAmika adaptations
 
 OpenAmika is a reference for companion interaction, not a runtime to transplant onto Android. NEXUS adapts selected portable ideas in Kotlin:

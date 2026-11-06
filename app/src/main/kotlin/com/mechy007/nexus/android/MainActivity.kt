@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -322,7 +323,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Allium wants NEXUS to perform this action on your Android device:")
-                    Text(describePendingAction(requestedAction), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(describePendingAction(requestedAction), Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("This approval applies only to this exact request and expires after five minutes.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
@@ -366,7 +367,7 @@ private fun describePendingAction(request: ToolRequest): String {
     return when (request.toolId.value) {
         "android.launch_app" -> "Open installed app: " + args["appName"].orEmpty()
         "android.open_url" -> "Open this link with Android's app chooser:\n" + args["url"].orEmpty()
-        "android.share_text" -> "Open Android Sharesheet with this text:\n" + args["text"].orEmpty().take(1200)
+        "android.share_text" -> "Open Android Sharesheet with this text:\n" + args["text"].orEmpty()
         else -> "Tool: " + request.toolId.value + "\nArguments: " + args.entries.joinToString { it.key + "=" + it.value.take(300) }
     }
 }

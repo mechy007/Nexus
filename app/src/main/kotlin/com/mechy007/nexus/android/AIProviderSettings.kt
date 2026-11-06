@@ -48,7 +48,7 @@ fun AIProviderSettings(onConnectionChanged: (Boolean) -> Unit) {
     var selectedId by rememberSaveable { mutableStateOf("openai") }
     var model by rememberSaveable { mutableStateOf("gpt-4o-mini") }
     var baseUrl by rememberSaveable { mutableStateOf("https://api.openai.com/v1") }
-    var apiKey by rememberSaveable { mutableStateOf("") }
+    var apiKey by remember { mutableStateOf("") }
     var configured by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("Choose a provider and add its API key.") }
 

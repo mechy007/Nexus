@@ -458,11 +458,11 @@ private fun ChatScreen(
                 when {
                     isSending -> "Allium is thinking…"
                     voiceStatus == AlliumVoiceController.Status.LISTENING -> "Listening… tap the microphone to stop."
-                    AlliumVoiceController.Status.SPEAKING -> "Allium is speaking."
-                    AlliumVoiceController.Status.INITIALIZING -> "Preparing voice services…"
-                    AlliumVoiceController.Status.UNAVAILABLE -> "Voice services are unavailable."
-                    AlliumVoiceController.Status.ERROR -> "Voice service needs attention."
-                    AlliumVoiceController.Status.IDLE -> if (providerConnected) "${AndroidNexusRuntime.currentSettings()?.displayName ?: "AI provider"} configured · first request verifies access." else "Connect an AI provider in Settings to enable replies."
+                    voiceStatus == AlliumVoiceController.Status.SPEAKING -> "Allium is speaking."
+                    voiceStatus == AlliumVoiceController.Status.INITIALIZING -> "Preparing voice services…"
+                    voiceStatus == AlliumVoiceController.Status.UNAVAILABLE -> "Voice services are unavailable."
+                    voiceStatus == AlliumVoiceController.Status.ERROR -> "Voice service needs attention."
+                    voiceStatus == AlliumVoiceController.Status.IDLE -> if (providerConnected) "${AndroidNexusRuntime.currentSettings()?.displayName ?: "AI provider"} configured · first request verifies access." else "Connect an AI provider in Settings to enable replies."
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp

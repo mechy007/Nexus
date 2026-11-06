@@ -462,7 +462,7 @@ private fun ChatScreen(
                     voiceStatus == AlliumVoiceController.Status.INITIALIZING -> "Preparing voice services…"
                     voiceStatus == AlliumVoiceController.Status.UNAVAILABLE -> "Voice services are unavailable."
                     voiceStatus == AlliumVoiceController.Status.ERROR -> "Voice service needs attention."
-                    voiceStatus == AlliumVoiceController.Status.IDLE -> if (providerConnected) "${AndroidNexusRuntime.currentSettings()?.displayName ?: "AI provider"} configured · first request verifies access." else "Connect an AI provider in Settings to enable replies."
+                    else -> if (providerConnected) "${AndroidNexusRuntime.currentSettings()?.displayName ?: "AI provider"} configured · first request verifies access." else "Connect an AI provider in Settings to enable replies."
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp

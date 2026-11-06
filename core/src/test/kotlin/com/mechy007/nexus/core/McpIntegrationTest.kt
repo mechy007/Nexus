@@ -125,7 +125,8 @@ class McpIntegrationTest {
         config: McpServerConfig,
         onComplete: (Result<List<ToolId>>) -> Unit
     ) {
-        manager.connect(config).startCoroutine(object : kotlin.coroutines.Continuation<List<ToolId>> {
+        val connection: suspend () -> List<ToolId> = { manager.connect(config) }
+        connection.startCoroutine(object : kotlin.coroutines.Continuation<List<ToolId>> {
             override val context = kotlin.coroutines.EmptyCoroutineContext
             override fun resumeWith(result: Result<List<ToolId>>) = onComplete(result)
         })

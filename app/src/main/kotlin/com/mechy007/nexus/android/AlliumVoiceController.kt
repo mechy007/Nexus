@@ -168,7 +168,7 @@ class AlliumVoiceController(
                     languageResult != TextToSpeech.LANG_MISSING_DATA &&
                     languageResult != TextToSpeech.LANG_NOT_SUPPORTED
                 if (!ttsReady) onError("The device does not support text-to-speech in the current language.")
-                onStatusChanged(Status.IDLE)
+                if (recognizer == null) onStatusChanged(Status.IDLE)
                 engine?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {
                         if (!released) onStatusChanged(Status.SPEAKING)

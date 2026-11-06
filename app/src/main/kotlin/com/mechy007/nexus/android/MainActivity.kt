@@ -163,8 +163,9 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
     var page by rememberSaveable { mutableStateOf(NexusPage.HOME) }
     var draft by rememberSaveable { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var providerConnected by remember { mutableStateOf(AndroidNexusRuntime.isConfigured(LocalContext.current)) }
+    var providerConnected by remember(context) { mutableStateOf(AndroidNexusRuntime.isConfigured(context)) }
     var speakNextReply by remember { mutableStateOf(false) }
     var voiceStatus by rememberSaveable { mutableStateOf(AlliumVoiceController.Status.IDLE) }
     val chat = remember {
@@ -172,7 +173,6 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
             ChatLine(0, "NEXUS is ready to explore. Connect an AI provider in Settings before expecting generated replies.", false)
         )
     }
-    val context = LocalContext.current
     val voiceController = remember(context) {
         AlliumVoiceController(
             context = context,

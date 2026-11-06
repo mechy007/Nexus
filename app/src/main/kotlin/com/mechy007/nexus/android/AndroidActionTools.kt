@@ -33,7 +33,7 @@ object AndroidExplicitApprovalPermissionManager : PermissionManager {
 
 class AndroidLaunchAppTool(private val bridge: AndroidDeviceActionBridge) : ToolAdapter {
     override val id = ToolId("android.launch_app")
-    override val description = "Open an installed app by its exact Android package name. Requires user approval."
+    override val description = "Open an installed app by its exact visible app name. Arguments: appName (string). Requires user approval."
 
     override suspend fun execute(request: ToolRequest): ToolResult {
         if (request.arguments.keys != setOf("appName")) return ToolResult(false, errorCode = "INVALID_ARGUMENTS")
@@ -53,7 +53,7 @@ class AndroidLaunchAppTool(private val bridge: AndroidDeviceActionBridge) : Tool
 
 class AndroidOpenWebLinkTool(private val bridge: AndroidDeviceActionBridge) : ToolAdapter {
     override val id = ToolId("android.open_url")
-    override val description = "Open one HTTP or HTTPS URL using Android's app chooser. Requires user approval."
+    override val description = "Open one HTTP or HTTPS URL using Android's app chooser. Arguments: url (string). Requires user approval."
 
     override suspend fun execute(request: ToolRequest): ToolResult {
         if (request.arguments.keys != setOf("url")) return ToolResult(false, errorCode = "INVALID_ARGUMENTS")
@@ -68,7 +68,7 @@ class AndroidOpenWebLinkTool(private val bridge: AndroidDeviceActionBridge) : To
 
 class AndroidShareTextTool(private val bridge: AndroidDeviceActionBridge) : ToolAdapter {
     override val id = ToolId("android.share_text")
-    override val description = "Open Android's Sharesheet with text for the user to choose and send. Does not send automatically. Requires user approval."
+    override val description = "Open Android's Sharesheet with text for the user to choose and send. Arguments: text (string). Does not send automatically. Requires user approval."
 
     override suspend fun execute(request: ToolRequest): ToolResult {
         if (request.arguments.keys != setOf("text")) return ToolResult(false, errorCode = "INVALID_ARGUMENTS")

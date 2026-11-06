@@ -56,6 +56,10 @@ public class LAppView implements AutoCloseable {
         int width = LAppDelegate.getInstance().getWindowWidth();
         int height = LAppDelegate.getInstance().getWindowHeight();
 
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
         float ratio = (float) width / (float) height;
         float left = -ratio;
         float right = ratio;
@@ -271,12 +275,12 @@ public class LAppView implements AutoCloseable {
         live2DManager.onTap(x, y);
 
         // 歯車ボタンにタップしたか
-        if (gearSprite.isHit(pointX, pointY)) {
+        if (gearSprite != null && gearSprite.isHit(pointX, pointY)) {
             isChangedModel = true;
         }
 
-        // 電源ボタンにタップしたか
-        if (powerSprite.isHit(pointX, pointY)) {
+        // The sample gear and power sprites are intentionally not part of the NEXUS UI.
+        if (powerSprite != null && powerSprite.isHit(pointX, pointY)) {
             // アプリを終了する
             LAppDelegate.getInstance().deactivateApp();
         }

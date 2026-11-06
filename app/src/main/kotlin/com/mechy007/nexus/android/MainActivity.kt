@@ -167,6 +167,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
     val scope = rememberCoroutineScope()
     var providerConnected by remember(context) { mutableStateOf(AndroidNexusRuntime.isConfigured(context)) }
     var speakNextReply by remember { mutableStateOf(false) }
+    var isSending by remember { mutableStateOf(false) }
     var voiceStatus by rememberSaveable { mutableStateOf(AlliumVoiceController.Status.IDLE) }
     val chat = remember {
         mutableStateListOf(
@@ -202,7 +203,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
 
     fun submitMessage() {
         val message = draft.trim()
-        if (message.isNotEmpty()) {
+        if (message.isNotEmpty() && !isSending) {
             chat += ChatLine(chat.size + 1, message, true)
             draft = ""
             keyboard?.hide()
@@ -213,6 +214,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
             }
             val shouldSpeak = speakNextReply
             speakNextReply = false
+            isSending = true
             scope.launch {
                 try {
                     val answer = AndroidNexusRuntime.respond(message)
@@ -220,6 +222,8 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                     if (shouldSpeak) voiceController.speak(answer)
                 } catch (_: Exception) {
                     chat += ChatLine(chat.size + 1, "NEXUS could not get a reply. Check the provider API key, model name, internet connection and account limits in Settings.", false)
+                } finally {
+                    isSending = false
                 }
             }
         }
@@ -252,7 +256,8 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                         }
                     },
                     voiceStatus = voiceStatus,
-                    providerConnected = providerConnected
+                    providerConnected = providerConnected,
+                    isSending = isSending
                 )
                 NexusPage.BROWSER -> BrowserScreen()
                 NexusPage.MIND_SPACE -> MindSpaceScreen()
@@ -443,14 +448,16 @@ private fun ChatScreen(
     onSend: () -> Unit,
     onVoice: () -> Unit,
     voiceStatus: AlliumVoiceController.Status,
-    providerConnected: Boolean
+    providerConnected: Boolean,
+    isSending: Boolean
 ) {
     Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp, vertical = 14.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text("Conversation", color = MaterialTheme.colorScheme.onBackground, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                when (voiceStatus) {
-                    AlliumVoiceController.Status.LISTENING -> "Listening… tap the microphone to stop."
+                when {
+                    isSending -> "Allium is thinking…"
+                    voiceStatus == AlliumVoiceController.Status.LISTENING -> "Listening… tap the microphone to stop."
                     AlliumVoiceController.Status.SPEAKING -> "Allium is speaking."
                     AlliumVoiceController.Status.INITIALIZING -> "Preparing voice services…"
                     AlliumVoiceController.Status.UNAVAILABLE -> "Voice services are unavailable."
@@ -506,7 +513,7 @@ private fun ChatScreen(
                 keyboardActions = KeyboardActions(onSend = { onSend() })
             )
             Spacer(Modifier.width(8.dp))
-            Button(onClick = onSend, modifier = Modifier.size(48.dp), shape = CircleShape, contentPadding = PaddingValues(0.dp)) {
+            Button(onClick = onSend, enabled = !isSending, modifier = Modifier.size(48.dp), shape = CircleShape, contentPadding = PaddingValues(0.dp)) {
                 Text("↑", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             }
         }

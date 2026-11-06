@@ -17,6 +17,27 @@ class McpIntegrationTest {
         }
         override fun close() { closed = true }
     }
+    @Test fun rejectsMalformedOrOversizedToolSchemas() {
+        assertFailsWith<IllegalArgumentException> {
+            McpToolDefinition("search", "Search", inputSchemaJson = "{not-json")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            McpToolDefinition("search", "Search", inputSchemaJson = "[]")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            McpToolDefinition("search", "Search", inputSchemaJson = """{"type":"executable"}""")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            McpToolDefinition("search", "Search", inputSchemaJson = " ".repeat(McpToolDefinition.MAX_SCHEMA_CHARS + 1))
+        }
+    }
+
+    @Test fun acceptsBoundedJsonSchemaTypesAndTypeUnions() {
+        McpToolDefinition("search", "Search", inputSchemaJson =
+            """{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":["integer","null"]}}}"""
+        )
+    }
+
     @Test fun rejectsInsecureRemoteEndpoints() {
         assertFailsWith<IllegalArgumentException> { McpServerConfig("remote", "http://example.com/mcp") }
         assertFailsWith<IllegalArgumentException> { McpServerConfig("remote", "https://user:pass@example.com/mcp") }

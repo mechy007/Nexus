@@ -2,6 +2,8 @@ package com.mechy007.nexus.core
 
 import java.net.URI
 import java.util.concurrent.CancellationException
+import com.google.gson.JsonElement
+import com.google.gson.JsonParser
 import java.util.concurrent.ConcurrentHashMap
 
 data class McpServerConfig(
@@ -30,7 +32,55 @@ data class McpServerConfig(
 data class McpToolDefinition(val name: String, val description: String, val inputSchemaJson: String = "{}") {
     init {
         require(name.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")))
-        require(description.isNotBlank())
+        require(description.isNotBlank() && description.length <= MAX_DESCRIPTION_CHARS)
+        require(inputSchemaJson.length <= MAX_SCHEMA_CHARS) { "MCP input schema is too large." }
+        val schema = try {
+            JsonParser.parseString(inputSchemaJson)
+        } catch (_: Exception) {
+            throw IllegalArgumentException("MCP input schema must be valid JSON.")
+        }
+        require(schema.isJsonObject) { "MCP input schema must be a JSON object." }
+        require(isBoundedJson(schema, 0, intArrayOf(0))) {
+            "MCP input schema exceeds structural limits."
+        }
+        val type = schema.asJsonObject.get("type")
+        if (type != null) {
+            val supported = setOf("object", "array", "string", "number", "integer", "boolean", "null")
+            val types = when {
+                type.isJsonPrimitive && type.asJsonPrimitive.isString -> listOf(type.asString)
+                type.isJsonArray -> type.asJsonArray.map { element ->
+                    require(element.isJsonPrimitive && element.asJsonPrimitive.isString) {
+                        "MCP schema type arrays must contain strings."
+                    }
+                    element.asString
+                }
+                else -> throw IllegalArgumentException("MCP schema type must be a string or string array.")
+            }
+            require(types.isNotEmpty() && types.all { it in supported }) {
+                "MCP input schema contains an unsupported JSON type."
+            }
+        }
+    }
+
+    companion object {
+        const val MAX_DESCRIPTION_CHARS = 4_096
+        const val MAX_SCHEMA_CHARS = 65_536
+        const val MAX_SCHEMA_DEPTH = 16
+        const val MAX_SCHEMA_NODES = 2_048
+
+        private fun isBoundedJson(element: JsonElement, depth: Int, nodes: IntArray): Boolean {
+            nodes[0]++
+            if (depth > MAX_SCHEMA_DEPTH || nodes[0] > MAX_SCHEMA_NODES) return false
+            return when {
+                element.isJsonObject -> element.asJsonObject.entrySet().all { (_, value) ->
+                    isBoundedJson(value, depth + 1, nodes)
+                }
+                element.isJsonArray -> element.asJsonArray.all { value ->
+                    isBoundedJson(value, depth + 1, nodes)
+                }
+                else -> true
+            }
+        }
     }
 }
 data class McpCallResult(val isError: Boolean, val text: String)
@@ -75,7 +125,9 @@ class McpConnectionManager(
         require(!active.containsKey(config.id)) { "MCP server is already connected." }
         val session = connector.connect(config)
         try {
-            val definitions = session.listTools().filter {
+            val listed = session.listTools()
+            require(listed.size <= MAX_TOOLS_PER_SERVER) { "MCP server exposed too many tools." }
+            val definitions = listed.filter {
                 config.allowedToolNames == null || it.name in config.allowedToolNames
             }
             val adapters = definitions.map { McpRemoteToolAdapter(config.id, it, session) }
@@ -101,4 +153,8 @@ class McpConnectionManager(
     }
     fun connectedServers(): Set<String> = active.keys.toSet()
     override fun close() { active.keys.toList().forEach(::disconnect) }
+
+    companion object {
+        const val MAX_TOOLS_PER_SERVER = 256
+    }
 }

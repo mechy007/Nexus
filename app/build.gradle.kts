@@ -39,6 +39,9 @@ kotlin {
 
 
 dependencies {
+    implementation(project(":core"))
+    implementation("com.google.code.gson:gson:2.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation(files("../integration-staging/nexus_allium_integration/app/libs/Live2DCubismCore.aar"))
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.11.0")

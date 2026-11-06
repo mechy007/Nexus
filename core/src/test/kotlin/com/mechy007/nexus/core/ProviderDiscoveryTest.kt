@@ -19,13 +19,13 @@ class ProviderDiscoveryTest {
         val report = ProviderDiscoveryService(registry).discover()
 
         assertEquals(
-            listOf("disabled", "healthy", "unsupported", "unhealthy"),
+            listOf("disabled", "healthy", "unhealthy", "unsupported"),
             report.entries.map { it.providerId.value }
         )
         assertEquals(ProviderDiscoveryStatus.DISABLED, report.entries[0].status)
         assertEquals(ProviderDiscoveryStatus.AVAILABLE, report.entries[1].status)
-        assertEquals(ProviderDiscoveryStatus.NOT_CHECKABLE, report.entries[2].status)
-        assertEquals(ProviderDiscoveryStatus.UNAVAILABLE, report.entries[3].status)
+        assertEquals(ProviderDiscoveryStatus.UNAVAILABLE, report.entries[2].status)
+        assertEquals(ProviderDiscoveryStatus.NOT_CHECKABLE, report.entries[3].status)
         assertEquals("UNHEALTHY", report.entries[3].failureCode)
         assertEquals(listOf(ProviderId("healthy")), report.available)
         assertEquals(listOf(ProviderId("unhealthy")), report.unavailable)

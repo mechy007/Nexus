@@ -90,7 +90,7 @@ public class LAppView implements AutoCloseable {
             MaxLogicalView.TOP.getValue()
         );
 
-        spriteShader = new LAppSpriteShader();
+        // The NEXUS avatar surface renders only the Live2D model; sample-app sprites are not bundled.
     }
 
     // 画像を初期化する
@@ -98,66 +98,7 @@ public class LAppView implements AutoCloseable {
         int windowWidth = LAppDelegate.getInstance().getWindowWidth();
         int windowHeight = LAppDelegate.getInstance().getWindowHeight();
 
-        LAppTextureManager textureManager = LAppDelegate.getInstance().getTextureManager();
-
-        // 背景画像の読み込み
-        LAppTextureManager.TextureInfo backgroundTexture = textureManager.createTextureFromPngFile(ResourcePath.ROOT.getPath() + ResourcePath.BACK_IMAGE.getPath());
-
-
-        // x,yは画像の中心座標
-        float x = windowWidth * 0.5f;
-        float y = windowHeight * 0.5f;
-        float fHeight = windowHeight * 0.95f;
-        float ratio = fHeight / (float) backgroundTexture.height;
-        float fWidth = (float) backgroundTexture.width * ratio;
-
-        int programId = spriteShader.getShaderId();
-
-        if (backSprite == null) {
-            backSprite = new LAppSprite(x, y, fWidth, fHeight, backgroundTexture.id, programId);
-        } else {
-            backSprite.resize(x, y, fWidth, fHeight);
-        }
-
-        // 歯車画像の読み込み
-        LAppTextureManager.TextureInfo gearTexture = textureManager.createTextureFromPngFile(ResourcePath.ROOT.getPath() + ResourcePath.GEAR_IMAGE.getPath());
-
-
-        x = windowWidth - gearTexture.width * 0.5f - 96.f;
-        y = windowHeight - gearTexture.height * 0.5f;
-        fWidth = (float) gearTexture.width;
-        fHeight = (float) gearTexture.height;
-
-        if (gearSprite == null) {
-            gearSprite = new LAppSprite(x, y, fWidth, fHeight, gearTexture.id, programId);
-        } else {
-            gearSprite.resize(x, y, fWidth, fHeight);
-        }
-
-        // 電源画像の読み込み
-        LAppTextureManager.TextureInfo powerTexture = textureManager.createTextureFromPngFile(ResourcePath.ROOT.getPath() + ResourcePath.POWER_IMAGE.getPath());
-
-
-        x = windowWidth - powerTexture.width * 0.5f - 96.0f;
-        y = powerTexture.height * 0.5f;
-        fWidth = (float) powerTexture.width;
-        fHeight = (float) powerTexture.height;
-
-        if (powerSprite == null) {
-            powerSprite = new LAppSprite(x, y, fWidth, fHeight, powerTexture.id, programId);
-        } else {
-            powerSprite.resize(x, y, fWidth, fHeight);
-        }
-
-        // 画面全体を覆うサイズ
-        x = windowWidth * 0.5f;
-        y = windowHeight * 0.5f;
-
-        if (renderingSprite == null) {
-            renderingSprite = new LAppSprite(x, y, windowWidth, windowHeight, 0, programId);
-        } else {
-            renderingSprite.resize(x, y, windowWidth, windowHeight);
-        }
+        // NEXUS provides its own Compose UI, so no sample background/gear/power sprites are loaded.
     }
 
     // 描画する
@@ -166,11 +107,7 @@ public class LAppView implements AutoCloseable {
         int maxWidth = LAppDelegate.getInstance().getWindowWidth();
         int maxHeight = LAppDelegate.getInstance().getWindowHeight();
 
-        backSprite.setWindowSize(maxWidth, maxHeight);
-        gearSprite.setWindowSize(maxWidth, maxHeight);
-        powerSprite.setWindowSize(maxWidth, maxHeight);
-
-        // UIと背景の描画
+        // The surrounding NEXUS Compose UI owns the avatar surface and controls.
 
         if (isChangedModel) {
             isChangedModel = false;

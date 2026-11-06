@@ -107,7 +107,6 @@ public class LAppDelegate {
 
         // AppViewの初期化
         view.initialize();
-        view.initializeSprite();
 
         // オフスクリーンのサイズ変更
         LAppLive2DManager.getInstance().setRenderTargetSize(width, height);

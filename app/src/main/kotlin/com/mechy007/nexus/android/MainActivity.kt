@@ -48,6 +48,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -167,6 +168,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
     val scope = rememberCoroutineScope()
     var providerConnected by remember(context) { mutableStateOf(AndroidNexusRuntime.isConfigured(context)) }
     var speakNextReply by remember { mutableStateOf(false) }
+    var pendingVoiceMessage by remember { mutableStateOf<String?>(null) }
     var isSending by remember { mutableStateOf(false) }
     var voiceStatus by rememberSaveable { mutableStateOf(AlliumVoiceController.Status.IDLE) }
     val chat = remember {
@@ -180,7 +182,11 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
             onStatusChanged = { voiceStatus = it },
             onTranscript = { transcript ->
                 draft = transcript
-                speakNextReply = true
+                pendingVoiceMessage = transcript
+                page = NexusPage.CHAT
+            },
+            onPartialTranscript = { transcript ->
+                draft = transcript
                 page = NexusPage.CHAT
             },
             onError = { message ->
@@ -229,6 +235,16 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
         }
     }
 
+    // A final recognition result becomes a normal chat turn automatically.
+    // Partial results only update the draft and are never sent to the provider.
+    LaunchedEffect(pendingVoiceMessage) {
+        val transcript = pendingVoiceMessage ?: return@LaunchedEffect
+        pendingVoiceMessage = null
+        draft = transcript
+        speakNextReply = true
+        submitMessage()
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = { NexusTopBar(connected = providerConnected, onStatusClick = { page = NexusPage.SETTINGS }) },
@@ -249,10 +265,10 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                     onDraftChange = { draft = it },
                     onSend = { submitMessage() },
                     onVoice = {
-                        if (voiceStatus == AlliumVoiceController.Status.LISTENING) {
-                            voiceController.stopListening()
-                        } else {
-                            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                        when (voiceStatus) {
+                            AlliumVoiceController.Status.LISTENING -> voiceController.stopListening()
+                            AlliumVoiceController.Status.SPEAKING -> voiceController.stopSpeaking()
+                            else -> microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
                     voiceStatus = voiceStatus,
@@ -458,7 +474,7 @@ private fun ChatScreen(
                 when {
                     isSending -> "Allium is thinking…"
                     voiceStatus == AlliumVoiceController.Status.LISTENING -> "Listening… tap the microphone to stop."
-                    voiceStatus == AlliumVoiceController.Status.SPEAKING -> "Allium is speaking."
+                    voiceStatus == AlliumVoiceController.Status.SPEAKING -> "Allium is speaking · tap the microphone to interrupt."
                     voiceStatus == AlliumVoiceController.Status.INITIALIZING -> "Preparing voice services…"
                     voiceStatus == AlliumVoiceController.Status.UNAVAILABLE -> "Voice services are unavailable."
                     voiceStatus == AlliumVoiceController.Status.ERROR -> "Voice service needs attention."
@@ -498,7 +514,15 @@ private fun ChatScreen(
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(if (voiceStatus == AlliumVoiceController.Status.LISTENING) "■" else "⌁", color = MaterialTheme.colorScheme.primary, fontSize = 24.sp)
+                    Text(
+                        when (voiceStatus) {
+                            AlliumVoiceController.Status.LISTENING -> "■"
+                            AlliumVoiceController.Status.SPEAKING -> "×"
+                            else -> "⌁"
+                        },
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 24.sp
+                    )
                 }
             }
             Spacer(Modifier.width(9.dp))

@@ -21,6 +21,7 @@ class AlliumVoiceController(
     context: Context,
     private val onStatusChanged: (Status) -> Unit = {},
     private val onTranscript: (String) -> Unit = {},
+    private val onPartialTranscript: (String) -> Unit = {},
     private val onError: (String) -> Unit = {}
 ) {
     enum class Status { IDLE, INITIALIZING, LISTENING, SPEAKING, UNAVAILABLE, ERROR }
@@ -83,7 +84,7 @@ class AlliumVoiceController(
                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull()
                     .orEmpty()
-                if (partial.isNotBlank()) onTranscript(partial)
+                if (partial.isNotBlank() && !released) onPartialTranscript(partial)
             }
             override fun onEvent(eventType: Int, params: Bundle?) = Unit
         })

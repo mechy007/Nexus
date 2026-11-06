@@ -91,6 +91,29 @@ class AgentRuntime(
         val startedAt = Instant.now()
         val steps = mutableListOf<TraceStep>()
         val guard = AgentLoopGuard(maxCalls = maxSteps)
+        val relevantMemories = if (memory == null) {
+            emptyList()
+        } else {
+            val memoryStartedAt = System.nanoTime()
+            try {
+                memory.search(userText, 8).also {
+                    steps += TraceStep(
+                        kind = TraceStepKind.MEMORY_RETRIEVAL,
+                        durationMillis = ((System.nanoTime() - memoryStartedAt) / 1_000_000).coerceAtLeast(0),
+                        detail = "retrieved:${it.size}"
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                steps += TraceStep(
+                    kind = TraceStepKind.MEMORY_RETRIEVAL,
+                    durationMillis = ((System.nanoTime() - memoryStartedAt) / 1_000_000).coerceAtLeast(0),
+                    detail = "unavailable"
+                )
+                emptyList()
+            }
+        }
 
         suspend fun finish(status: AgentTurnStatus, reply: String? = null,
                            pending: ToolRequest? = null, failure: String? = null): AgentTurnResult {
@@ -107,7 +130,7 @@ class AgentRuntime(
             val decision = try {
                 val before = System.nanoTime()
                 val result = decisionEngine.decide(
-                    AgentTurnContext(session, agent, memory?.search(userText, 8).orEmpty(), index)
+                    AgentTurnContext(session, agent, relevantMemories, index)
                 )
                 steps += TraceStep(kind = TraceStepKind.GENERATION,
                     durationMillis = ((System.nanoTime() - before) / 1_000_000).coerceAtLeast(0))
@@ -116,7 +139,7 @@ class AgentRuntime(
                 throw cancelled
             } catch (error: Exception) {
                 steps += TraceStep(kind = TraceStepKind.FAILURE, detail = "Decision engine failed")
-                return finish(AgentTurnStatus.FAILED, failure = error.message ?: "Decision engine failed.")
+                return finish(AgentTurnStatus.FAILED, failure = "Decision engine failed.")
             }
 
             when (decision) {

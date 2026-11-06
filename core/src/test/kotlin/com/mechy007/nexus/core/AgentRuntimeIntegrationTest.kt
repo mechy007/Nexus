@@ -113,6 +113,36 @@ class AgentRuntimeIntegrationTest {
         assertEquals("Unreviewed tools cannot execute.", result.failureReason)
     }
 
+    @Test fun retrievesMemoryOnceAndReusesItAcrossAgentSteps() = runSuspend {
+        var memorySearches = 0
+        val memoryStore = object : MemoryStore {
+            override suspend fun search(query: String, limit: Int): List<MemoryRecord> {
+                memorySearches++
+                return listOf(MemoryRecord(id = "memory-1", text = "remembered context"))
+            }
+            override suspend fun put(record: MemoryRecord) = Unit
+            override suspend fun delete(id: String) = Unit
+            override suspend fun exportAll() = emptyList<MemoryRecord>()
+        }
+        var decisions = 0
+        val profile = AgentProfile(AgentId("lara"), "Lara", "test", "prompt")
+        val registry = ToolRegistry().apply { register(ToolRegistration(EchoTool())) }
+        val engine = AgentDecisionEngine { context ->
+            decisions++
+            assertEquals("remembered context", context.relevantMemories.single().text)
+            if (decisions <= 2) AgentDecision.CallTool(ToolRequest(
+                toolId = ToolId("echo"), requestedBy = context.agent.id,
+                sessionId = context.session.id, arguments = mapOf("value" to "step-$decisions")
+            )) else AgentDecision.Reply("Finished")
+        }
+        val result = AgentRuntime(Agents(profile), engine, Sessions(), registry,
+            Permissions(GrantDecision.GRANTED), Audit(), InMemoryTraceStore(), memoryStore)
+            .run(SessionId("memory-context"), AgentId("lara"), "Use memory")
+        assertEquals(AgentTurnStatus.COMPLETED, result.status)
+        assertEquals(3, decisions)
+        assertEquals(1, memorySearches)
+    }
+
     @Test fun sessionStoreSurvivesRestartAndDeletes() = runSuspend {
         val dir = tempDir.resolve("sessions").toFile()
         val store = JsonFileSessionStore(dir)

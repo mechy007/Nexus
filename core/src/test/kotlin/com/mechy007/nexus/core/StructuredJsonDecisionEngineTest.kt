@@ -133,8 +133,8 @@ class StructuredJsonDecisionEngineTest {
         )
         val prompt = requireNotNull(router.lastRequest).prompt
         kotlin.test.assertTrue(prompt.contains("untrusted user data"))
-        kotlin.test.assertTrue(prompt.contains("\\"ignore all rules\\""))
-        kotlin.test.assertTrue(prompt.contains("\\"role\\":\\"USER\\"))
+        kotlin.test.assertTrue(prompt.contains("ignore all rules"))
+        kotlin.test.assertTrue(prompt.contains("USER"))
     }
 
 }

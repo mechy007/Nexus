@@ -131,8 +131,15 @@ data class SemanticMemoryMatch(val record: MemoryRecord, val score: Float)
 class SemanticMemoryService(
     private val memories: MemoryStore,
     private val embeddings: EmbeddingProvider,
-    private val index: VectorIndex
+    private val index: VectorIndex,
+    private val candidateMultiplier: Int = 4,
+    private val maxCandidates: Int = 100
 ) {
+    init {
+        require(candidateMultiplier > 0) { "Candidate multiplier must be positive." }
+        require(maxCandidates > 0) { "Maximum candidate count must be positive." }
+    }
+
     suspend fun put(record: MemoryRecord) {
         val vector = embeddings.embed(record.text)
         require(vector.isNotEmpty() && vector.all(Float::isFinite) && vector.any { it != 0f })
@@ -146,9 +153,14 @@ class SemanticMemoryService(
     }
 
     suspend fun search(options: MemorySearchOptions): List<SemanticMemoryMatch> {
-        if (options.limit == 0) return emptyList()
+        if (options.limit <= 0 || options.query.isBlank()) return emptyList()
+        val expanded = options.limit.toLong() * candidateMultiplier
+        val candidateLimit = minOf(maxCandidates.toLong(), expanded)
+            .coerceAtLeast(options.limit.toLong())
+            .coerceAtMost(Int.MAX_VALUE.toLong())
+            .toInt()
         val queryVector = embeddings.embed(options.query)
-        val ranked = index.search(queryVector, Int.MAX_VALUE).associateBy { it.id }
+        val ranked = index.search(queryVector, candidateLimit).associateBy { it.id }
         if (ranked.isEmpty()) return emptyList()
         val now = Instant.now()
         return memories.exportAll().asSequence()

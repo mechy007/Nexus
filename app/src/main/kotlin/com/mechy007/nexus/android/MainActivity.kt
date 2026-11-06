@@ -604,7 +604,6 @@ private fun EmptyFeatureCard(symbol: String, title: String, description: String)
     }
 }
 
-@Composable
 private fun Context.findMainActivity(): MainActivity? {
     var current: Context? = this
     while (current is ContextWrapper) {

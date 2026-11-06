@@ -180,7 +180,12 @@ object AndroidNexusRuntime {
     fun configure(context: Context, providerSettings: AndroidProviderSettings, apiKey: String) {
         val app = context.applicationContext
         val secrets = AndroidProviderSecretStore(app)
+        val preferences = app.getSharedPreferences("nexus_provider_config", Context.MODE_PRIVATE)
+        val previousProvider = preferences.getString("provider_id", null)
         secrets.save(providerSettings.providerId, apiKey.trim())
+        if (previousProvider != null && previousProvider != providerSettings.providerId) {
+            secrets.delete(previousProvider)
+        }
         val providers = InMemoryProviderRegistry().apply {
             register(AndroidChatProviderAdapter(providerSettings, secrets))
         }
@@ -191,7 +196,7 @@ object AndroidNexusRuntime {
             router = CapabilityAwareProviderRouter(providers),
             sessions = JsonFileSessionStore(app.getDir("nexus_sessions", Context.MODE_PRIVATE))
         )
-        app.getSharedPreferences("nexus_provider_config", Context.MODE_PRIVATE).edit()
+        preferences.edit()
             .putString("provider_id", providerSettings.providerId)
             .putString("display_name", providerSettings.displayName)
             .putString("base_url", providerSettings.baseUrl)
@@ -203,8 +208,13 @@ object AndroidNexusRuntime {
     fun configureWithSavedKey(context: Context, providerSettings: AndroidProviderSettings) {
         val app = context.applicationContext
         val secrets = AndroidProviderSecretStore(app)
+        val preferences = app.getSharedPreferences("nexus_provider_config", Context.MODE_PRIVATE)
+        val previousProvider = preferences.getString("provider_id", null)
         check(!secrets.resolve(ProviderId(providerSettings.providerId)).isNullOrBlank()) {
             "No saved API key exists for this provider. Enter the key again."
+        }
+        if (previousProvider != null && previousProvider != providerSettings.providerId) {
+            secrets.delete(previousProvider)
         }
         val providers = InMemoryProviderRegistry().apply {
             register(AndroidChatProviderAdapter(providerSettings, secrets))
@@ -216,7 +226,7 @@ object AndroidNexusRuntime {
             router = CapabilityAwareProviderRouter(providers),
             sessions = JsonFileSessionStore(app.getDir("nexus_sessions", Context.MODE_PRIVATE))
         )
-        app.getSharedPreferences("nexus_provider_config", Context.MODE_PRIVATE).edit()
+        preferences.edit()
             .putString("provider_id", providerSettings.providerId)
             .putString("display_name", providerSettings.displayName)
             .putString("base_url", providerSettings.baseUrl)

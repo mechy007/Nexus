@@ -248,11 +248,18 @@ class AgentRuntime(
                             return finish(AgentTurnStatus.FAILED, failure = "Permission denied for tool.")
                         }
                         GrantDecision.REQUIRES_USER_ACTION -> {
+                            val now = Instant.now()
+                            pendingApprovals.entries.removeIf { it.value.createdAt.plusSeconds(300).isBefore(now) }
+                            if (pendingApprovals.size >= 32) {
+                                audit.record(AuditEvent(agentId.value, "tool.execute", request.toolId.value, "approval_queue_full"))
+                                return finish(AgentTurnStatus.FAILED, failure = "Too many pending approvals. Resolve an existing request first.")
+                            }
                             pendingApprovals[request.id] = PendingToolExecution(
                                 request = request,
                                 agent = agent,
                                 session = session,
-                                registration = registration
+                                registration = registration,
+                                createdAt = now
                             )
                             audit.record(AuditEvent(agentId.value, "tool.execute", request.toolId.value, "awaiting_approval"))
                             return finish(AgentTurnStatus.AWAITING_APPROVAL, pending = request)

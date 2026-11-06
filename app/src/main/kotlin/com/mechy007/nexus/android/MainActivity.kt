@@ -1,6 +1,8 @@
 package com.mechy007.nexus.android
 
 import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.opengl.GLSurfaceView
 import android.os.Bundle
@@ -603,10 +605,31 @@ private fun EmptyFeatureCard(symbol: String, title: String, description: String)
 }
 
 @Composable
+private fun Context.findMainActivity(): MainActivity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is MainActivity) return current
+        current = current.baseContext
+    }
+    return current as? MainActivity
+}
+
+@Composable
 private fun AlliumLive2D(modifier: Modifier = Modifier) {
-    val activity = LocalContext.current as? MainActivity
+    val context = LocalContext.current
+    val activity = remember(context) { context.findMainActivity() }
+    if (activity == null) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text(
+                "Allium is waiting for its Android host.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp
+            )
+        }
+        return
+    }
     val glView = remember(activity) {
-        requireNotNull(activity) { "Allium renderer requires an Activity context." }.let { host ->
+        activity.let { host ->
             if (!host.alliumInitialized) {
                 LAppDelegate.getInstance().onStart(host)
                 host.alliumInitialized = true

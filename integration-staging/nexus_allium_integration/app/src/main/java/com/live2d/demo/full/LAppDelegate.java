@@ -93,13 +93,13 @@ public class LAppDelegate {
         // シェーダコードを再読み込みするためにインスタンスを破棄しておく
         CubismShaderAndroid.deleteInstance();
 
-        LAppLive2DManager live2DManager = LAppLive2DManager.getInstance();
-        for (int i = 0; i < live2DManager.getModelNum(); i++) {
-            live2DManager.getModel(i).reloadRenderer();
-        }
+        // Defer model creation until GLSurfaceView reports a positive surface size.
+        // If this is a recreated EGL context, reload existing models after resize.
+        rendererNeedsReload = LAppLive2DManager.hasInstance();
     }
 
     public void onSurfaceChanged(int width, int height) {
+        if (width <= 0 || height <= 0 || view == null) return;
         // 描画範囲指定
         GLES20.glViewport(0, 0, width, height);
         windowWidth = width;
@@ -108,8 +108,13 @@ public class LAppDelegate {
         // AppViewの初期化
         view.initialize();
 
-        // オフスクリーンのサイズ変更
-        LAppLive2DManager.getInstance().setRenderTargetSize(width, height);
+        // Create the model only after the GL surface has a valid size.
+        LAppLive2DManager live2DManager = LAppLive2DManager.getInstance();
+        if (rendererNeedsReload) {
+            live2DManager.reloadRenderers();
+            rendererNeedsReload = false;
+        }
+        live2DManager.setRenderTargetSize(width, height);
     }
 
     public void run() {
@@ -126,7 +131,7 @@ public class LAppDelegate {
         }
 
         // アプリケーションを非アクティブにする
-        if (!isActive) {
+        if (!isActive && activity != null) {
             activity.finishAndRemoveTask();
         }
     }
@@ -223,6 +228,7 @@ public class LAppDelegate {
     private int windowWidth;
     private int windowHeight;
     private boolean isActive = true;
+    private boolean rendererNeedsReload;
 
     /**
      * モデルシーンインデックス

@@ -12,6 +12,7 @@ import com.live2d.demo.LAppDefine;
 import com.live2d.sdk.cubism.core.ICubismLogger;
 import com.live2d.sdk.cubism.framework.ICubismLoadFileFunction;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -50,35 +51,17 @@ public class LAppPal {
 
     // ファイルをバイト列として読み込む
     public static byte[] loadFileAsBytes(final String path) {
-        InputStream fileData = null;
-        try {
-            fileData = LAppDelegate.getInstance().getActivity().getAssets().open(path);
-
-            int fileSize = fileData.available();
-            byte[] fileBuffer = new byte[fileSize];
-            fileData.read(fileBuffer, 0, fileSize);
-
-            return fileBuffer;
-        } catch (IOException e) {
-            e.printStackTrace();
-
-            if (LAppDefine.DEBUG_LOG_ENABLE) {
-                printLog("File open error.");
+        try (InputStream fileData = LAppDelegate.getInstance().getActivity().getAssets().open(path);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] chunk = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = fileData.read(chunk)) != -1) {
+                output.write(chunk, 0, bytesRead);
             }
-
+            return output.toByteArray();
+        } catch (IOException | RuntimeException error) {
+            Log.e(TAG, "Unable to load Live2D asset: " + path, error);
             return new byte[0];
-        } finally {
-            try {
-                if (fileData != null) {
-                    fileData.close();
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-
-                if (LAppDefine.DEBUG_LOG_ENABLE) {
-                    printLog("File open error.");
-                }
-            }
         }
     }
 

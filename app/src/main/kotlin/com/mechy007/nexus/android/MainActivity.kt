@@ -1,9 +1,12 @@
 package com.mechy007.nexus.android
 
 import android.Manifest
+import android.content.Context
+import android.content.ContextWrapper
 import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.view.MotionEvent
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -76,6 +79,7 @@ import com.live2d.demo.full.LAppDelegate
 class MainActivity : ComponentActivity() {
     internal var alliumGlView: GLSurfaceView? = null
     internal var alliumInitialized = false
+    internal var alliumActivityResumed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,16 +93,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        alliumActivityResumed = true
         alliumGlView?.onResume()
     }
 
     override fun onPause() {
+        alliumActivityResumed = false
         alliumGlView?.onPause()
         super.onPause()
     }
 
     override fun onDestroy() {
+        alliumActivityResumed = false
         alliumGlView?.onPause()
+        alliumGlView?.setOnTouchListener(null)
         if (alliumInitialized) LAppDelegate.getInstance().onDestroy()
         alliumGlView = null
         super.onDestroy()
@@ -680,45 +688,84 @@ private fun EmptyFeatureCard(symbol: String, title: String, description: String)
     }
 }
 
+private fun Context.findMainActivity(): MainActivity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is MainActivity) return current
+        current = current.baseContext
+    }
+    return current as? MainActivity
+}
+
 @Composable
 private fun AlliumLive2D(modifier: Modifier = Modifier) {
-    val activity = LocalContext.current as? MainActivity
+    val context = LocalContext.current
+    val activity = remember(context) { context.findMainActivity() }
+    if (activity == null) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text("Allium is waiting for its Android host.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        }
+        return
+    }
+
+    var rendererFailed by remember(activity) { mutableStateOf(false) }
     val glView = remember(activity) {
-        requireNotNull(activity) { "Allium renderer requires an Activity context." }.let { host ->
-            if (!host.alliumInitialized) {
-                LAppDelegate.getInstance().onStart(host)
-                host.alliumInitialized = true
+        runCatching {
+            if (!activity.alliumInitialized) {
+                LAppDelegate.getInstance().onStart(activity)
+                activity.alliumInitialized = true
             }
-            GLSurfaceView(host).apply {
-                host.alliumGlView = this
+            GLSurfaceView(activity).apply {
+                activity.alliumGlView = this
                 setEGLContextClientVersion(2)
                 setEGLConfigChooser(8, 8, 8, 8, 16, 0)
-                setRenderer(GLRenderer())
+                setRenderer(GLRenderer {
+                    activity.runOnUiThread { rendererFailed = true }
+                })
                 renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
                 preserveEGLContextOnPause = true
                 setOnTouchListener { _, event ->
                     val x = event.x
                     val y = event.y
+                    val action = event.actionMasked
                     queueEvent {
-                        when (event.action) {
-                            MotionEvent.ACTION_DOWN -> LAppDelegate.getInstance().onTouchBegan(x, y)
-                            MotionEvent.ACTION_UP -> LAppDelegate.getInstance().onTouchEnd(x, y)
-                            MotionEvent.ACTION_MOVE -> LAppDelegate.getInstance().onTouchMoved(x, y)
+                        val delegate = LAppDelegate.getInstance()
+                        when (action) {
+                            MotionEvent.ACTION_DOWN -> delegate.onTouchBegan(x, y)
+                            MotionEvent.ACTION_MOVE -> delegate.onTouchMoved(x, y)
+                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> delegate.onTouchEnd(x, y)
                         }
                     }
                     true
                 }
+                if (activity.alliumActivityResumed) onResume()
             }
+        }.onFailure { error ->
+            Log.e("NEXUS-Allium", "Unable to create the Live2D surface; NEXUS will remain usable.", error)
+        }.getOrNull()
+    }
+
+    if (glView == null) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text("Allium couldn't start. NEXUS is still available.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }
+        return
     }
 
     DisposableEffect(glView) {
-        glView.onResume()
         onDispose {
             glView.onPause()
-            if (activity?.alliumGlView === glView) activity.alliumGlView = null
+            glView.setOnTouchListener(null)
+            if (activity.alliumGlView === glView) activity.alliumGlView = null
         }
     }
 
-    AndroidView(factory = { glView }, modifier = modifier)
+    Box(modifier = modifier) {
+        AndroidView(factory = { glView }, modifier = Modifier.fillMaxSize())
+        if (rendererFailed) {
+            Box(Modifier.fillMaxSize().background(Color(0xFF091A2E)), contentAlignment = Alignment.Center) {
+                Text("Allium's renderer needs attention. NEXUS is still available.", color = Color.White, fontSize = 12.sp)
+            }
+        }
+    }
 }

@@ -224,7 +224,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
 
     fun submitMessage() {
         val message = draft.trim()
-        if (message.isNotEmpty() && !isSending) {
+        if (message.isNotEmpty() && !isSending && pendingApproval == null) {
             chat += ChatLine(chat.size + 1, message, true)
             draft = ""
             keyboard?.hide()
@@ -297,7 +297,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                     },
                     voiceStatus = voiceStatus,
                     providerConnected = providerConnected,
-                    isSending = isSending
+                    isSending = isSending || pendingApproval != null || isApprovingAction
                 )
                 NexusPage.BROWSER -> BrowserScreen()
                 NexusPage.MIND_SPACE -> MindSpaceScreen()

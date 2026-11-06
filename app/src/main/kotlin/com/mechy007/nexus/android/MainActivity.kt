@@ -227,9 +227,7 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                     onDraftChange = { draft = it },
                     onSend = { submitMessage() },
                     onVoice = {
-                        if (voiceStatus == AlliumVoiceController.Status.LISTENING ||
-                            voiceStatus == AlliumVoiceController.Status.INITIALIZING
-                        ) {
+                        if (voiceStatus == AlliumVoiceController.Status.LISTENING) {
                             voiceController.stopListening()
                         } else {
                             microphonePermission.launch(Manifest.permission.RECORD_AUDIO)

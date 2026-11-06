@@ -6,7 +6,7 @@ import com.google.gson.JsonObject
 import com.mechy007.nexus.core.*
 import java.io.File
 
-/** App-private, append-only audit trail. It records action metadata, never argument contents. */
+/** App-private, bounded audit trail. It records action metadata, never argument contents. */
 class AndroidActionAuditSink(context: Context) : AuditSink {
     private val file = File(context.applicationContext.filesDir, "nexus_action_audit.jsonl")
     private val lock = Any()
@@ -20,7 +20,10 @@ class AndroidActionAuditSink(context: Context) : AuditSink {
             addProperty("outcome", event.outcome)
             addProperty("occurredAt", event.occurredAt.toString())
         }
-        synchronized(lock) { file.appendText(gson.toJson(row) + "\n", Charsets.UTF_8) }
+        synchronized(lock) {
+            val retained = if (file.exists()) file.readLines(Charsets.UTF_8).takeLast(499) else emptyList()
+            file.writeText((retained + gson.toJson(row)).joinToString(separator = "\n", postfix = "\n"), Charsets.UTF_8)
+        }
     }
 }
 

@@ -52,6 +52,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import kotlinx.coroutines.launch
 import com.live2d.demo.full.GLRenderer
 import com.live2d.demo.full.LAppDelegate
 
@@ -161,19 +163,24 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
     var page by rememberSaveable { mutableStateOf(NexusPage.HOME) }
     var draft by rememberSaveable { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var providerConnected by remember(context) { mutableStateOf(AndroidNexusRuntime.isConfigured(context)) }
+    var speakNextReply by remember { mutableStateOf(false) }
+    var isSending by remember { mutableStateOf(false) }
     var voiceStatus by rememberSaveable { mutableStateOf(AlliumVoiceController.Status.IDLE) }
     val chat = remember {
         mutableStateListOf(
             ChatLine(0, "NEXUS is ready to explore. Connect an AI provider in Settings before expecting generated replies.", false)
         )
     }
-    val context = LocalContext.current
     val voiceController = remember(context) {
         AlliumVoiceController(
             context = context,
             onStatusChanged = { voiceStatus = it },
             onTranscript = { transcript ->
                 draft = transcript
+                speakNextReply = true
                 page = NexusPage.CHAT
             },
             onError = { message ->
@@ -196,26 +203,41 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
 
     fun submitMessage() {
         val message = draft.trim()
-        if (message.isNotEmpty()) {
+        if (message.isNotEmpty() && !isSending) {
             chat += ChatLine(chat.size + 1, message, true)
-            chat += ChatLine(
-                chat.size + 1,
-                "The NEXUS AI engine is not connected yet, so I can't generate a reply. Your message has not been sent to an AI provider.",
-                false
-            )
             draft = ""
             keyboard?.hide()
+            if (!providerConnected) {
+                chat += ChatLine(chat.size + 1, "Connect an AI provider in Settings before sending messages. This message was not sent.", false)
+                speakNextReply = false
+                return
+            }
+            val shouldSpeak = speakNextReply
+            speakNextReply = false
+            isSending = true
+            scope.launch {
+                try {
+                    val answer = AndroidNexusRuntime.respond(message)
+                    chat += ChatLine(chat.size + 1, answer, false)
+                    if (shouldSpeak) voiceController.speak(answer)
+                } catch (_: Exception) {
+                    chat += ChatLine(chat.size + 1, "NEXUS could not get a reply. Check the provider API key, model name, internet connection and account limits in Settings.", false)
+                } finally {
+                    isSending = false
+                }
+            }
         }
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { NexusTopBar(onStatusClick = { page = NexusPage.SETTINGS }) },
+        topBar = { NexusTopBar(connected = providerConnected, onStatusClick = { page = NexusPage.SETTINGS }) },
         bottomBar = { NexusNavigationBar(selected = page, onSelect = { page = it }) }
     ) { contentPadding ->
         Box(Modifier.fillMaxSize().padding(contentPadding)) {
             when (page) {
                 NexusPage.HOME -> HomeScreen(
+                    providerConnected = providerConnected,
                     onOpenChat = { page = NexusPage.CHAT },
                     onOpenBrowser = { page = NexusPage.BROWSER },
                     onOpenMindSpace = { page = NexusPage.MIND_SPACE },
@@ -233,18 +255,24 @@ private fun NexusApp(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
                             microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
-                    voiceStatus = voiceStatus
+                    voiceStatus = voiceStatus,
+                    providerConnected = providerConnected,
+                    isSending = isSending
                 )
                 NexusPage.BROWSER -> BrowserScreen()
                 NexusPage.MIND_SPACE -> MindSpaceScreen()
-                NexusPage.SETTINGS -> SettingsScreen(darkTheme = darkTheme, onThemeChange = onThemeChange)
+                NexusPage.SETTINGS -> SettingsScreen(
+                    darkTheme = darkTheme,
+                    onThemeChange = onThemeChange,
+                    onConnectionChanged = { providerConnected = it }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun NexusTopBar(onStatusClick: () -> Unit) {
+private fun NexusTopBar(connected: Boolean, onStatusClick: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
@@ -267,9 +295,9 @@ private fun NexusTopBar(onStatusClick: () -> Unit) {
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(7.dp).background(Color(0xFFE0A64B), CircleShape))
+                    Box(Modifier.size(7.dp).background(if (connected) Color(0xFF54C78A) else Color(0xFFE0A64B), CircleShape))
                     Spacer(Modifier.width(7.dp))
-                    Text("AI OFFLINE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
+                    Text(if (connected) "AI SET" else "AI OFFLINE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
                 }
             }
         }
@@ -299,6 +327,7 @@ private fun NexusNavigationBar(selected: NexusPage, onSelect: (NexusPage) -> Uni
 
 @Composable
 private fun HomeScreen(
+    providerConnected: Boolean,
     onOpenChat: () -> Unit,
     onOpenBrowser: () -> Unit,
     onOpenMindSpace: () -> Unit,
@@ -336,7 +365,7 @@ private fun HomeScreen(
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text("AI engine", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    Text("No provider connected yet", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text(if (providerConnected) "Provider configured" else "No provider connected yet", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 }
                 Text("SET UP  ›", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
             }
@@ -418,26 +447,29 @@ private fun ChatScreen(
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
     onVoice: () -> Unit,
-    voiceStatus: AlliumVoiceController.Status
+    voiceStatus: AlliumVoiceController.Status,
+    providerConnected: Boolean,
+    isSending: Boolean
 ) {
     Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp, vertical = 14.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text("Conversation", color = MaterialTheme.colorScheme.onBackground, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                when (voiceStatus) {
-                    AlliumVoiceController.Status.LISTENING -> "Listening… tap the microphone to stop."
-                    AlliumVoiceController.Status.SPEAKING -> "Allium is speaking."
-                    AlliumVoiceController.Status.INITIALIZING -> "Preparing voice services…"
-                    AlliumVoiceController.Status.UNAVAILABLE -> "Voice services are unavailable."
-                    AlliumVoiceController.Status.ERROR -> "Voice service needs attention."
-                    AlliumVoiceController.Status.IDLE -> "Your messages stay on this screen until an AI provider is connected."
+                when {
+                    isSending -> "Allium is thinking…"
+                    voiceStatus == AlliumVoiceController.Status.LISTENING -> "Listening… tap the microphone to stop."
+                    voiceStatus == AlliumVoiceController.Status.SPEAKING -> "Allium is speaking."
+                    voiceStatus == AlliumVoiceController.Status.INITIALIZING -> "Preparing voice services…"
+                    voiceStatus == AlliumVoiceController.Status.UNAVAILABLE -> "Voice services are unavailable."
+                    voiceStatus == AlliumVoiceController.Status.ERROR -> "Voice service needs attention."
+                    else -> if (providerConnected) "${AndroidNexusRuntime.currentSettings()?.displayName ?: "AI provider"} configured · first request verifies access." else "Connect an AI provider in Settings to enable replies."
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp
             )
         }
         Spacer(Modifier.height(12.dp))
-        OfflineNotice()
+        if (!providerConnected) OfflineNotice()
         Spacer(Modifier.height(12.dp))
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
@@ -481,7 +513,7 @@ private fun ChatScreen(
                 keyboardActions = KeyboardActions(onSend = { onSend() })
             )
             Spacer(Modifier.width(8.dp))
-            Button(onClick = onSend, modifier = Modifier.size(48.dp), shape = CircleShape, contentPadding = PaddingValues(0.dp)) {
+            Button(onClick = onSend, enabled = !isSending, modifier = Modifier.size(48.dp), shape = CircleShape, contentPadding = PaddingValues(0.dp)) {
                 Text("↑", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             }
         }
@@ -565,7 +597,11 @@ private fun MindSpaceScreen() {
 }
 
 @Composable
-private fun SettingsScreen(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit) {
+private fun SettingsScreen(
+    darkTheme: Boolean,
+    onThemeChange: (Boolean) -> Unit,
+    onConnectionChanged: (Boolean) -> Unit
+) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -586,17 +622,7 @@ private fun SettingsScreen(darkTheme: Boolean, onThemeChange: (Boolean) -> Unit)
                 }
             }
         }
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(20.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("AI CONNECTION", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
-                Text("No AI provider connected", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text("Provider setup and model routing will appear here when the connection flow is implemented.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 18.sp)
-            }
-        }
+        AIProviderSettings(onConnectionChanged = onConnectionChanged)
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(20.dp),

@@ -1,0 +1,9 @@
+[submodule "reference-projects/OpenJarvis"]
+	path = reference-projects/OpenJarvis
+	url = https://github.com/open-jarvis/OpenJarvis.git
+[submodule "reference-projects/OpenAmika"]
+	path = reference-projects/OpenAmika
+	url = https://github.com/zeekk0/OpenAmika.git
+[submodule "reference-projects/AIRI"]
+	path = reference-projects/AIRI
+	url = https://github.com/moeru-ai/airi.git

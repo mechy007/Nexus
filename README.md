@@ -21,7 +21,7 @@ The repository includes a native Android app in `app/`.
 - Application ID: `com.mechy007.nexus`
 - Minimum Android version: Android 8.0 (API 26)
 - Target Android version: API 36
-- The current CI pipeline builds a debug APK and verifies its package ID, SDK metadata, APK archive integrity and debug signature.
+- CI builds and verifies the debug APK, checks its 64-bit ARM Live2D runtime, and installs/launches the app in an Android emulator through an instrumentation smoke test.
 
 ### Download and install the CI APK
 
@@ -31,7 +31,7 @@ The repository includes a native Android app in `app/`.
 4. Open **nexus-debug.apk** from the extracted folder—not the ZIP file.
 5. If Android asks, allow the file manager or browser to install unknown apps.
 
-The artifact also includes `INSTALL.txt` and `SHA256SUMS.txt`. CI checks the APK before publishing the artifact. These checks verify the package structure and signature, but cannot guarantee installation on every device.
+The artifact also includes `INSTALL.txt` and `SHA256SUMS.txt`. CI verifies the APK signature, alignment, package ID, SDK metadata, archive integrity and required ARM64 Live2D library. The emulator smoke test confirms Android can install and launch the app in the CI environment; it cannot guarantee compatibility with every vendor ROM or replace testing on a physical device.
 
 **Debug-build update note:** GitHub-hosted CI creates a temporary debug signing key for each run. A later build may therefore not install as an in-place update over an earlier CI build. Uninstalling the older app can remove its local app data, so back up anything important before doing that.
 

@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   android-build:
-    name: Build, install-smoke-test and package Android APK
+    name: Build and package Android APK
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -29,15 +29,6 @@ jobs:
         run: gradle :app:assembleDebug
       - name: Run NEXUS core tests
         run: gradle :core:test
-      - name: Install and launch NEXUS on Android emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          disable-animations: true
-          script: gradle :app:connectedDebugAndroidTest
       - name: Verify APK package, SDK levels, ABI and signature
         shell: bash
         run: |

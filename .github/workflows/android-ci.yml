@@ -24,7 +24,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.14.3"
+          gradle-version: "8.14.4"
       - name: Assemble debug APK
         run: gradle :app:assembleDebug
       - name: Run NEXUS core tests
@@ -35,7 +35,7 @@ jobs:
           api-level: 35
           target: google_apis
           arch: x86_64
-          profile: Pixel_2
+          profile: pixel_2
           disable-animations: true
           script: gradle :app:connectedDebugAndroidTest
       - name: Verify APK package, SDK levels, ABI and signature
